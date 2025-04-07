@@ -580,7 +580,7 @@ async function decryptImage() {
     const data = imageData.data;
     
     // Calculate reserved area (same as in encryption)
-    const reservedPixels = 100;
+    const reservedPixels = 256;
     const reservedBytes = reservedPixels * 4;
     const dataLimit = data.length - reservedBytes;
     
