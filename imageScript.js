@@ -30,7 +30,7 @@ document.getElementById('image-input').addEventListener('change', function(e) {
       }
       
       // Check if this is an encrypted image
-      checkForEmbeddedMetadata(img).then(metadata => {
+      checkForSteganography(img).then(metadata => {
         console.log("Metadata check result:", metadata ? "Found" : "Not found");
         if (metadata) {
           console.log("Detected encrypted image with metadata:", metadata);
@@ -162,9 +162,9 @@ function binaryToCounts(binary) {
 const characterPool = [
   'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
   'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-  'ä', 'é', 'ñ', 'ø', 'ü', 'ç', 'ß', 'å', 'æ', 'ö', 'î', 'â', '��', 'û', 'ô', 'è', 'ï', 'ë', 'ì', 'ò', 'ù', 'ã', 'õ', 'á', 'í', 'ó',
+  'ä', 'é', 'ñ', 'ø', 'ü', 'ç', 'ß', 'å', 'æ', 'ö', 'î', 'â', 'ê', 'û', 'ô', 'è', 'ï', 'ë', 'ì', 'ò', 'ù', 'ã', 'õ', 'á', 'í', 'ó',
   'Ä', 'É', 'Ñ', 'Ø', 'Ü', 'Ç', 'Å', 'Æ', 'Ö', 'Î', 'Â', 'Ê', 'Û', 'Ô', 'È', 'Ï', 'Ë', 'Ì', 'Ò', 'Ù', 'Ã', 'Õ', 'Á', 'Í', 'Ó',
-  'α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ', 'λ', 'μ', 'ν', 'ξ', 'ο', 'π', 'ρ', 'σ', '��', 'υ', 'φ', 'χ', 'ψ', 'ω',
+  'α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ', 'λ', 'μ', 'ν', 'ξ', 'ο', 'π', 'ρ', 'σ', 'τ', 'υ', 'φ', 'χ', 'ψ', 'ω',
   'А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'Й', 'К', 'Л', 'М', 'Н', 'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф', 'Х', 'Ц', 'Ч', 'Ш', 'Щ'
 ];
 
@@ -287,13 +287,8 @@ async function encryptImage() {
     // Modify seed with password
     const { seed, mode, data: passwordData } = await modifySeedWithPassword(baseSeed);
     
-    // Reserve the last rows of pixels for metadata
-    const reservedPixels = 256; // UPDATED: 256 pixels = 1KB (1024 bytes)
-    const reservedBytes = reservedPixels * 4;
-    const dataLimit = data.length - reservedBytes;
-    
-    // Process each pixel with the encryption algorithm (skip reserved area)
-    for (let i = 0; i < dataLimit; i += 4) {
+    // Process each pixel with the encryption algorithm (whole image)
+    for (let i = 0; i < data.length; i += 4) {
       // Get RGB values (ignore alpha)
       const r = data[i];
       const g = data[i + 1];
@@ -337,8 +332,8 @@ async function encryptImage() {
     const metadataStr = JSON.stringify(metadata);
     console.log("Embedding metadata:", metadataStr);
     
-    // Embed metadata into the image
-    embedMetadataIntoImage(data, metadataStr, dataLimit);
+    // Use robust LSB steganography instead of raw pixel data
+    embedSteganography(data, canvas.width, canvas.height, metadataStr);
     
     // Put the encrypted data back onto the canvas
     ctx.putImageData(imageData, 0, 0);
@@ -370,46 +365,83 @@ async function encryptImage() {
   }
 }
 
-// Embed metadata into the image data
-function embedMetadataIntoImage(data, metadataStr, dataLimit) {
-  // Calculate positions
-  const sigLength = 4; // 4 characters for signature "EIMG"
-  const metadataLength = metadataStr.length;
+// NEW: Embed metadata using LSB (Least Significant Bit) steganography
+// This survives PNG compression because it only modifies the least significant bits
+function embedSteganography(data, width, height, metadataStr) {
+  // First, add a solid signature pattern that we can easily detect
+  const signature = "ENKRPSHN"; // Our signature
   
-  // Calculate how many pixels we need
-  const totalBytesNeeded = metadataLength + sigLength + 4; // +4 for length storage
-  const totalPixelsNeeded = Math.ceil(totalBytesNeeded / 3); // Each pixel can store 3 bytes (R,G,B)
+  // Create a byte array with signature + metadata length + metadata
+  const metadataBytes = new TextEncoder().encode(metadataStr);
+  const metadataLength = metadataBytes.length;
   
-  console.log(`Metadata size: ${metadataLength} bytes, needs ${totalPixelsNeeded} pixels`);
+  // Check if we have enough space in the image
+  const totalBits = width * height * 3; // 3 bits per pixel (1 per RGB channel)
+  const totalBytesNeeded = signature.length + 4 + metadataLength;
+  const totalBitsNeeded = totalBytesNeeded * 8;
   
-  // Make sure we have enough space
-  const availablePixels = Math.floor((data.length - dataLimit) / 4);
-  if (totalPixelsNeeded > availablePixels) {
-    throw new Error(`Metadata too large: needs ${totalPixelsNeeded} pixels, have ${availablePixels}`);
+  if (totalBitsNeeded > totalBits) {
+    throw new Error(`Image too small for metadata: needs ${totalBitsNeeded} bits, have ${totalBits} bits`);
   }
   
-  // Write signature at the start of the reserved area
-  let position = dataLimit;
-  console.log(`Writing signature at position: ${position}`);
+  console.log(`Using LSB steganography: embedding ${totalBytesNeeded} bytes (${totalBitsNeeded} bits)`);
   
-  for (let i = 0; i < sigLength; i++) {
-    data[position++] = "EIMG".charCodeAt(i);
+  // Start embedding data at a specific offset to avoid header issues
+  const startOffset = 1000; // Start at pixel 250 (x4 for RGBA)
+  let byteIndex = 0;
+  let bitIndex = 0;
+  
+  // Embed the signature first
+  for (let i = 0; i < signature.length; i++) {
+    const charCode = signature.charCodeAt(i);
+    for (let bit = 0; bit < 8; bit++) {
+      const bitValue = (charCode >> bit) & 1;
+      const position = startOffset + (byteIndex * 8 + bit) * 4;
+      
+      // Only modify the LSB of the value
+      if (bitValue) {
+        data[position] |= 1; // Set LSB to 1
+      } else {
+        data[position] &= ~1; // Set LSB to 0
+      }
+    }
+    byteIndex++;
   }
   
-  // Write metadata length (16-bit value)
-  data[position++] = metadataLength & 0xFF;
-  data[position++] = (metadataLength >> 8) & 0xFF;
+  // Embed the metadata length (32-bit value)
+  for (let bit = 0; bit < 32; bit++) {
+    const bitValue = (metadataLength >> bit) & 1;
+    const position = startOffset + (byteIndex * 8 + bit) * 4;
+    
+    if (bitValue) {
+      data[position] |= 1;
+    } else {
+      data[position] &= ~1;
+    }
+  }
+  byteIndex += 4; // 4 bytes for length
   
-  // Write the metadata characters
+  // Embed the metadata bytes
   for (let i = 0; i < metadataLength; i++) {
-    data[position++] = metadataStr.charCodeAt(i);
+    const byte = metadataBytes[i];
+    for (let bit = 0; bit < 8; bit++) {
+      const bitValue = (byte >> bit) & 1;
+      const position = startOffset + (byteIndex * 8 + bit) * 4;
+      
+      if (bitValue) {
+        data[position] |= 1;
+      } else {
+        data[position] &= ~1;
+      }
+    }
+    byteIndex++;
   }
   
-  console.log(`Metadata embedded successfully at positions ${dataLimit} to ${position-1}`);
+  console.log(`Steganography complete: embedded ${byteIndex} bytes starting at offset ${startOffset}`);
 }
 
-// Check if an image has embedded encryption metadata
-async function checkForEmbeddedMetadata(img) {
+// NEW: Read metadata using LSB steganography
+async function checkForSteganography(img) {
   try {
     // Create a canvas to examine the image
     const canvas = document.createElement('canvas');
@@ -423,48 +455,72 @@ async function checkForEmbeddedMetadata(img) {
     const data = imageData.data;
     
     // Make sure image is large enough
-    if (data.length < 1024) { // UPDATED: Need at least 256 pixels for 1KB
-      console.log("Image too small to contain metadata");
+    const startOffset = 1000; // Same as in embedding function
+    if (data.length < startOffset + 1024) {
+      console.log("Image too small to contain steganography");
       return null;
     }
     
-    // Calculate reserved area start
-    const dataLimit = data.length - 1024; // UPDATED: Look for metadata in the last 1KB
+    // Read signature
+    const signature = "ENKRPSHN";
+    let extractedSignature = "";
     
-    // Read signature from the beginning of reserved area
-    let position = dataLimit;
-    let signature = '';
-    for (let i = 0; i < 4; i++) {
-      signature += String.fromCharCode(data[position++]);
+    for (let i = 0; i < signature.length; i++) {
+      let charCode = 0;
+      for (let bit = 0; bit < 8; bit++) {
+        const position = startOffset + (i * 8 + bit) * 4;
+        const bitValue = data[position] & 1;
+        if (bitValue) {
+          charCode |= (1 << bit);
+        }
+      }
+      extractedSignature += String.fromCharCode(charCode);
     }
     
-    console.log(`Looking for signature at position ${dataLimit}, found: "${signature}"`);
+    console.log(`Found signature: "${extractedSignature}"`);
     
     // Check if this is our encrypted image
-    if (signature !== 'EIMG') {
+    if (extractedSignature !== signature) {
       console.log("No valid signature found");
       return null;
     }
     
-    // Read metadata length (16-bit value)
-    const lengthLow = data[position++];
-    const lengthHigh = data[position++];
-    const metadataLength = lengthLow | (lengthHigh << 8);
+    // Read metadata length (32-bit value)
+    let metadataLength = 0;
+    for (let bit = 0; bit < 32; bit++) {
+      const position = startOffset + ((signature.length * 8) + bit) * 4;
+      const bitValue = data[position] & 1;
+      if (bitValue) {
+        metadataLength |= (1 << bit);
+      }
+    }
     
     console.log(`Metadata length: ${metadataLength} bytes`);
     
     // Sanity check the length
-    if (metadataLength <= 0 || metadataLength > 1000) {
+    if (metadataLength <= 0 || metadataLength > 10000) {
       console.log("Invalid metadata length");
       return null;
     }
     
-    // Read metadata characters
-    let metadataStr = '';
+    // Read metadata bytes
+    const metadataBytes = new Uint8Array(metadataLength);
+    const baseOffset = signature.length + 4; // Signature + 4 bytes for length
+    
     for (let i = 0; i < metadataLength; i++) {
-      metadataStr += String.fromCharCode(data[position++]);
+      let byte = 0;
+      for (let bit = 0; bit < 8; bit++) {
+        const position = startOffset + ((baseOffset * 8) + (i * 8) + bit) * 4;
+        const bitValue = data[position] & 1;
+        if (bitValue) {
+          byte |= (1 << bit);
+        }
+      }
+      metadataBytes[i] = byte;
     }
     
+    // Convert to string
+    const metadataStr = new TextDecoder().decode(metadataBytes);
     console.log(`Raw metadata: ${metadataStr}`);
     
     // Parse metadata
@@ -479,7 +535,7 @@ async function checkForEmbeddedMetadata(img) {
     };
     
   } catch (error) {
-    console.error('Error checking for metadata:', error);
+    console.error('Error checking for steganography:', error);
     return null;
   }
 }
@@ -508,8 +564,8 @@ async function decryptImage() {
   try {
     console.log("Starting decryption process");
     
-    // Check if the image has embedded metadata
-    const metadata = await checkForEmbeddedMetadata(originalImage);
+    // Check if the image has embedded metadata using steganography
+    const metadata = await checkForSteganography(originalImage);
     
     if (!metadata) {
       alert('No encryption metadata found. This image may not be encrypted with this system.');
@@ -581,13 +637,8 @@ async function decryptImage() {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
     
-    // Calculate reserved area (same as in encryption)
-    const reservedPixels = 256; // UPDATED: 256 pixels for 1KB
-    const reservedBytes = reservedPixels * 4;
-    const dataLimit = data.length - reservedBytes;
-    
-    // Process each pixel with the decryption algorithm - skip the metadata area
-    for (let i = 0; i < dataLimit; i += 4) {
+    // Process each pixel with the decryption algorithm
+    for (let i = 0; i < data.length; i += 4) {
       // Get encrypted RGB values
       const encryptedR = data[i];
       const encryptedG = data[i + 1];
