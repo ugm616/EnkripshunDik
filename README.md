@@ -1,4 +1,6 @@
 # EnkripshunDik
 Genau das, was der Name sagt.
 
-https://ugm616.github.io/EnkripshunDik/
+Online: https://ugm616.github.io/EnkripshunDik/
+
+Window/MacOS/Linux coming soon.
