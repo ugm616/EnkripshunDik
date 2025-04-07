@@ -1,2 +1,2 @@
 # EnkripshunDik
-Exactly what it says in the name.
+Genau das, was der Name sagt.
