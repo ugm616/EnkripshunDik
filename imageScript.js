@@ -3,6 +3,7 @@ let originalImage = null;
 let resultImage = null;
 let passwordFile = null;
 let passwordHash = null;
+let savedMetadata = null; // Store metadata separately for reliability
 
 // Load diagnostic information on DOM content loaded
 document.addEventListener('DOMContentLoaded', function() {
@@ -28,17 +29,22 @@ document.getElementById('image-input').addEventListener('change', function(e) {
           placeholder.style.display = 'none';
         }
         
-        // Check if this is an encrypted image with embedded metadata
-        checkForEmbeddedMetadata(img).then(metadata => {
-          if (metadata) {
-            // This is an encrypted image
-            console.log("Detected encrypted image with embedded metadata");
+        // Check if this image has associated metadata
+        try {
+          // Check if the data URL contains our metadata marker
+          if (img.src.includes('#EnkripshunMetadata=')) {
+            console.log("Detected metadata in URL");
+            const metadataBase64 = img.src.split('#EnkripshunMetadata=')[1];
+            const metadataJson = atob(metadataBase64);
+            console.log("Metadata JSON:", metadataJson);
+            const metadata = JSON.parse(metadataJson);
+            
+            console.log("Successfully extracted metadata from image URL", metadata);
             
             // Store metadata for later use
-            img.embeddedMetadata = metadata;
+            savedMetadata = metadata;
             
             // Notify the user this is an encrypted image
-            const placeholder = document.getElementById('preview-placeholder');
             if (placeholder) {
               placeholder.textContent = 'Encrypted image detected. Use the Decrypt button to view original.';
               placeholder.style.display = 'block';
@@ -53,76 +59,19 @@ document.getElementById('image-input').addEventListener('change', function(e) {
                 radio.dispatchEvent(new Event('change'));
               }
             });
+          } else {
+            console.log("No metadata found in URL");
+            savedMetadata = null;
           }
-        }).catch(err => {
-          console.error("Error checking for metadata:", err);
-        });
+        } catch (error) {
+          console.error("Error checking for metadata:", error);
+        }
       };
       img.src = event.target.result;
     };
     reader.readAsDataURL(file);
   }
 });
-
-// Check if an image has embedded encryption metadata
-async function checkForEmbeddedMetadata(img) {
-  try {
-    // Create a canvas to examine the image
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    canvas.width = img.width;
-    canvas.height = img.height;
-    ctx.drawImage(img, 0, 0);
-    
-    // Get image data
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-    
-    // Make sure image is large enough
-    if (data.length < 1024) return null; // Need at least 100 pixels
-    
-    // Calculate reserved area start
-    const dataLimit = data.length - 400;
-    
-    // Read signature from the beginning of reserved area
-    let position = dataLimit;
-    let signature = '';
-    for (let i = 0; i < 4; i++) {
-      signature += String.fromCharCode(data[position++]);
-    }
-    
-    // Check if this is our encrypted image
-    if (signature !== 'EIMG') {
-      return null;
-    }
-    
-    // Read metadata length (16-bit value)
-    const lengthLow = data[position++];
-    const lengthHigh = data[position++];
-    const metadataLength = lengthLow | (lengthHigh << 8);
-    
-    // Read metadata characters
-    let metadataStr = '';
-    for (let i = 0; i < metadataLength; i++) {
-      metadataStr += String.fromCharCode(data[position++]);
-    }
-    
-    // Parse metadata
-    const metadata = JSON.parse(metadataStr);
-    
-    // Convert compact format back to full format
-    return {
-      seed: new Uint32Array(metadata.s.map(v => parseInt(v, 36))), // Convert from base36 back to numbers
-      mode: metadata.m === 's' ? 'simple' : 'advanced',
-      data: metadata.d,
-      version: metadata.v
-    };
-    
-  } catch (error) {
-    console.error('Error checking for embedded metadata:', error);
-    return null;
-  }
-}
 
 // Password mode selection
 const passwordModeRadios = document.querySelectorAll('input[name="password-mode"]');
@@ -231,9 +180,9 @@ function binaryToCounts(binary) {
 const characterPool = [
   'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
   'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-  'ä', '��', 'ñ', 'ø', 'ü', 'ç', 'ß', 'å', 'æ', 'ö', 'î', 'â', 'ê', 'û', 'ô', 'è', 'ï', 'ë', 'ì', 'ò', 'ù', 'ã', 'õ', 'á', 'í', 'ó',
+  'ä', 'é', 'ñ', 'ø', 'ü', 'ç', 'ß', 'å', 'æ', 'ö', 'î', 'â', 'ê', 'û', 'ô', 'è', 'ï', 'ë', 'ì', 'ò', 'ù', 'ã', 'õ', 'á', 'í', 'ó',
   'Ä', 'É', 'Ñ', 'Ø', 'Ü', 'Ç', 'Å', 'Æ', 'Ö', 'Î', 'Â', 'Ê', 'Û', 'Ô', 'È', 'Ï', 'Ë', 'Ì', 'Ò', 'Ù', 'Ã', 'Õ', 'Á', 'Í', 'Ó',
-  'α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ', 'λ', 'μ', '��', 'ξ', 'ο', 'π', 'ρ', 'σ', 'τ', 'υ', 'φ', 'χ', 'ψ', 'ω',
+  'α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ', 'λ', 'μ', 'ν', 'ξ', 'ο', 'π', 'ρ', 'σ', 'τ', 'υ', 'φ', 'χ', 'ψ', 'ω',
   'А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'Й', 'К', 'Л', 'М', 'Н', 'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф', 'Х', 'Ц', 'Ч', 'Ш', 'Щ'
 ];
 
@@ -360,25 +309,14 @@ async function encryptImage() {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
     
-    // Make sure image is large enough to hold metadata
-    const minPixels = 100; // Need at least 100 pixels for metadata
-    if (canvas.width * canvas.height < minPixels) {
-      throw new Error("Image too small to encrypt - needs at least 100 pixels");
-    }
-    
     // Generate base seed
     const baseSeed = get1024BitSeed();
     
     // Modify seed with password
     const { seed, mode, data: passwordData } = await modifySeedWithPassword(baseSeed);
     
-    // Reserve the last rows of pixels for metadata
-    const reservedPixels = 256;
-    const reservedBytes = reservedPixels * 4;
-    const dataLimit = data.length - reservedBytes;
-    
-    // Process each pixel with the encryption algorithm (skip reserved area)
-    for (let i = 0; i < dataLimit; i += 4) {
+    // Process each pixel with the encryption algorithm
+    for (let i = 0; i < data.length; i += 4) {
       // Get RGB values (ignore alpha)
       const r = data[i];
       const g = data[i + 1];
@@ -410,24 +348,23 @@ async function encryptImage() {
       // Alpha remains unchanged
     }
     
-    // Create compact metadata
+    // Create metadata
     const metadata = {
       s: Array.from(seed).map(v => v.toString(36)), // Convert to base36 for shorter strings
-      m: mode.charAt(0), // 's' for simple, 'a' for advanced
-      d: passwordData,
-      v: "1"
+      mode: mode, // Store full mode name for clarity
+      data: passwordData,
+      version: "1.0",
+      created: new Date().toISOString()
     };
     
-    // Convert metadata to JSON string
-    const metadataStr = JSON.stringify(metadata);
-    
-    // Embed metadata into the image
-    embedMetadataIntoImage(data, metadataStr, dataLimit);
+    // Convert metadata to base64
+    const metadataJson = JSON.stringify(metadata);
+    const metadataBase64 = btoa(metadataJson);
     
     // Put the encrypted data back onto the canvas
     ctx.putImageData(imageData, 0, 0);
     
-    // Create a new image from the canvas
+    // Create a new image from the canvas, adding metadata as a fragment identifier
     const encryptedImg = new Image();
     encryptedImg.onload = function() {
       // Display the encrypted image
@@ -437,8 +374,9 @@ async function encryptImage() {
         outputContainer.appendChild(encryptedImg);
       }
       
-      // Store for download
+      // Store for download and for later decryption
       resultImage = encryptedImg;
+      savedMetadata = metadata;
       
       // Enable download button
       const downloadBtn = document.getElementById('download-btn');
@@ -446,42 +384,13 @@ async function encryptImage() {
         downloadBtn.disabled = false;
       }
     };
-    encryptedImg.src = canvas.toDataURL('image/png');
+    
+    // Set the data URL with the metadata fragment
+    encryptedImg.src = canvas.toDataURL('image/png') + '#EnkripshunMetadata=' + metadataBase64;
+    console.log("Created encrypted image with metadata");
   } catch (error) {
     alert('Encryption error: ' + error.message);
     console.error('Encryption error:', error);
-  }
-}
-
-// Embed metadata into the image data
-function embedMetadataIntoImage(data, metadataStr, dataLimit) {
-  // Calculate positions
-  const sigLength = 4; // 4 characters for signature "EIMG"
-  const metadataLength = metadataStr.length;
-  
-  // Calculate how many pixels we need
-  const totalBytesNeeded = metadataLength + sigLength + 4; // +4 for length storage
-  const totalPixelsNeeded = Math.ceil(totalBytesNeeded / 3); // Each pixel can store 3 bytes (R,G,B)
-  
-  // Make sure we have enough space
-  const availablePixels = Math.floor((data.length - dataLimit) / 4);
-  if (totalPixelsNeeded > availablePixels) {
-    throw new Error(`Metadata too large: needs ${totalPixelsNeeded} pixels, have ${availablePixels}`);
-  }
-  
-  // Write signature at the start of the reserved area
-  let position = dataLimit;
-  for (let i = 0; i < sigLength; i++) {
-    data[position++] = "EIMG".charCodeAt(i);
-  }
-  
-  // Write metadata length (16-bit value)
-  data[position++] = metadataLength & 0xFF;
-  data[position++] = (metadataLength >> 8) & 0xFF;
-  
-  // Write the metadata characters
-  for (let i = 0; i < metadataLength; i++) {
-    data[position++] = metadataStr.charCodeAt(i);
   }
 }
 
@@ -501,23 +410,29 @@ function encryptValue(value, pixelSeed, seed) {
 
 // Image decryption function
 async function decryptImage() {
-  // First check if we have an uploaded image that has embedded metadata
+  // First check if we have an uploaded image
   if (!originalImage) {
     alert('Please select an encrypted image first!');
     return;
   }
   
   try {
-    // Check if the image has embedded metadata
-    const metadata = originalImage.embeddedMetadata || await checkForEmbeddedMetadata(originalImage);
-    
-    if (!metadata) {
-      alert('No encryption metadata found. This image may not be encrypted with this system.');
-      return;
+    // Check if we have metadata for this image
+    if (!savedMetadata) {
+      // Check if there's metadata in the image URL
+      if (originalImage.src.includes('#EnkripshunMetadata=')) {
+        const metadataBase64 = originalImage.src.split('#EnkripshunMetadata=')[1];
+        const metadataJson = atob(metadataBase64);
+        savedMetadata = JSON.parse(metadataJson);
+      } else {
+        alert('No encryption metadata found. This image may not be encrypted with this system.');
+        return;
+      }
     }
     
     // Extract encryption details
-    const seed = metadata.seed;
+    const metadata = savedMetadata;
+    const seed = new Uint32Array(metadata.s.map(v => parseInt(v, 36)));
     const storedPasswordMode = metadata.mode;
     const storedPasswordData = metadata.data;
     
@@ -579,13 +494,8 @@ async function decryptImage() {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
     
-    // Calculate reserved area (same as in encryption)
-    const reservedPixels = 256;
-    const reservedBytes = reservedPixels * 4;
-    const dataLimit = data.length - reservedBytes;
-    
-    // Process each pixel with the decryption algorithm - skip the metadata area
-    for (let i = 0; i < dataLimit; i += 4) {
+    // Process each pixel with the decryption algorithm
+    for (let i = 0; i < data.length; i += 4) {
       // Get encrypted RGB values
       const encryptedR = data[i];
       const encryptedG = data[i + 1];
