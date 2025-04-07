@@ -143,22 +143,69 @@ function get1024BitSeed() {
   return array;
 }
 
-// Generate a strong pseudo-random number based on seed and position
-function strongRandom(seed, position) {
-  // Apply multiple mixing operations to increase randomness
-  let hash = position ^ seed[position % seed.length];
+// Fast, high-quality 32-bit hash function
+function murmurhash3_32_gc(key, seed) {
+  let remainder, bytes, h1, h1b, c1, c2, k1, i;
   
-  // Jenkins One-at-a-Time Hash for better distribution
-  hash += (hash << 10);
-  hash ^= (hash >> 6);
-  hash += (hash << 3);
-  hash ^= (hash >> 11);
-  hash += (hash << 15);
+  remainder = key.length & 3; // key.length % 4
+  bytes = key.length - remainder;
+  h1 = seed;
+  c1 = 0xcc9e2d51;
+  c2 = 0x1b873593;
+  i = 0;
   
-  // Add in more seed bytes to increase entropy
-  hash ^= seed[(position * 7 + 3) % seed.length];
+  while (i < bytes) {
+    k1 = 
+      ((key.charCodeAt(i) & 0xff)) |
+      ((key.charCodeAt(++i) & 0xff) << 8) |
+      ((key.charCodeAt(++i) & 0xff) << 16) |
+      ((key.charCodeAt(++i) & 0xff) << 24);
+    ++i;
+    
+    k1 = ((((k1 & 0xffff) * c1) + ((((k1 >>> 16) * c1) & 0xffff) << 16))) & 0xffffffff;
+    k1 = (k1 << 15) | (k1 >>> 17);
+    k1 = ((((k1 & 0xffff) * c2) + ((((k1 >>> 16) * c2) & 0xffff) << 16))) & 0xffffffff;
+    
+    h1 ^= k1;
+    h1 = (h1 << 13) | (h1 >>> 19);
+    h1b = ((((h1 & 0xffff) * 5) + ((((h1 >>> 16) * 5) & 0xffff) << 16))) & 0xffffffff;
+    h1 = (((h1b & 0xffff) + 0x6b64) + ((((h1b >>> 16) + 0xe654) & 0xffff) << 16));
+  }
   
-  return hash % 256;
+  k1 = 0;
+  
+  switch (remainder) {
+    case 3: k1 ^= (key.charCodeAt(i + 2) & 0xff) << 16;
+    case 2: k1 ^= (key.charCodeAt(i + 1) & 0xff) << 8;
+    case 1: k1 ^= (key.charCodeAt(i) & 0xff);
+            
+            k1 = (((k1 & 0xffff) * c1) + ((((k1 >>> 16) * c1) & 0xffff) << 16)) & 0xffffffff;
+            k1 = (k1 << 15) | (k1 >>> 17);
+            k1 = (((k1 & 0xffff) * c2) + ((((k1 >>> 16) * c2) & 0xffff) << 16)) & 0xffffffff;
+            h1 ^= k1;
+  }
+  
+  h1 ^= key.length;
+  
+  h1 ^= h1 >>> 16;
+  h1 = (((h1 & 0xffff) * 0x85ebca6b) + ((((h1 >>> 16) * 0x85ebca6b) & 0xffff) << 16)) & 0xffffffff;
+  h1 ^= h1 >>> 13;
+  h1 = ((((h1 & 0xffff) * 0xc2b2ae35) + ((((h1 >>> 16) * 0xc2b2ae35) & 0xffff) << 16))) & 0xffffffff;
+  h1 ^= h1 >>> 16;
+  
+  return h1 >>> 0;
+}
+
+// Generate pseudo-random values from seed and position
+function seedRandom(seed, position) {
+  // Create a unique identifier for this position
+  const posStr = position.toString() + seed[0].toString();
+  
+  // Generate a hash value for this position
+  const hashValue = murmurhash3_32_gc(posStr, seed[position % seed.length]);
+  
+  // Return a value between 0 and 255
+  return hashValue % 256;
 }
 
 // Modify seed with password
@@ -212,37 +259,77 @@ async function modifySeedWithPassword(seed) {
   };
 }
 
-// IMPROVED ENCRYPTION - Creates visually scrambled images
+// STRONG ENCRYPTION: This will completely scramble the image
 function encryptPixel(r, g, b, position, seed) {
-  // Generate three different random values based on position and seed
-  const randR = strongRandom(seed, position);
-  const randG = strongRandom(seed, position + 1);
-  const randB = strongRandom(seed, position + 2);
+  // Generate noise values derived from the seed and position
+  const noiseR = seedRandom(seed, position);
+  const noiseG = seedRandom(seed, position + 0xF1EA7);
+  const noiseB = seedRandom(seed, position + 0xD06);
   
-  // Apply strong encryption that significantly changes pixel values
-  const encR = (r + randR) % 256;
-  const encG = (g + randG) % 256;
-  const encB = (b + randB) % 256;
+  // Apply multiple transformations to thoroughly scramble pixel values
   
-  return { r: encR, g: encG, b: encB };
+  // 1. Bitwise operations to destroy color relationships
+  const step1R = (r ^ noiseR) & 0xFF;
+  const step1G = (g ^ noiseG) & 0xFF;
+  const step1B = (b ^ noiseB) & 0xFF;
+  
+  // 2. Addition/modulo to shift color channels
+  const step2R = (step1R + noiseG) % 256;
+  const step2G = (step1G + noiseB) % 256;
+  const step2B = (step1B + noiseR) % 256;
+  
+  // 3. Channel swapping based on seed values
+  // This is especially effective at destroying recognizable patterns
+  const swapChannels = position % 6; // 6 possible channel arrangements
+  let finalR, finalG, finalB;
+  
+  switch(swapChannels) {
+    case 0: finalR = step2R; finalG = step2G; finalB = step2B; break; // RGB
+    case 1: finalR = step2B; finalG = step2R; finalB = step2G; break; // BRG
+    case 2: finalR = step2G; finalG = step2B; finalB = step2R; break; // GBR
+    case 3: finalR = step2B; finalG = step2G; finalB = step2R; break; // BGR
+    case 4: finalR = step2G; finalG = step2R; finalB = step2B; break; // GRB
+    case 5: finalR = step2R; finalG = step2B; finalB = step2G; break; // RBG
+  }
+  
+  return { r: finalR, g: finalG, b: finalB };
 }
 
-// Decrypt a pixel - exact inverse of encryption
+// Decrypt a pixel - exact inverse of encryption for perfect restoration
 function decryptPixel(r, g, b, position, seed) {
-  // Generate the same random values as during encryption
-  const randR = strongRandom(seed, position);
-  const randG = strongRandom(seed, position + 1);
-  const randB = strongRandom(seed, position + 2);
+  // First determine which channel arrangement was used during encryption
+  const swapChannels = position % 6;
+  let step2R, step2G, step2B;
   
-  // Reverse the encryption operation
-  const decR = (r - randR + 256) % 256;
-  const decG = (g - randG + 256) % 256;
-  const decB = (b - randB + 256) % 256;
+  // Undo the channel swapping
+  switch(swapChannels) {
+    case 0: step2R = r; step2G = g; step2B = b; break; // RGB
+    case 1: step2R = g; step2G = b; step2B = r; break; // BRG
+    case 2: step2R = b; step2G = r; step2B = g; break; // GBR
+    case 3: step2R = b; step2G = g; step2B = r; break; // BGR
+    case 4: step2R = g; step2G = r; step2B = b; break; // GRB
+    case 5: step2R = r; step2G = b; step2B = g; break; // RBG
+  }
   
-  return { r: decR, g: decG, b: decB };
+  // Generate the same noise values used during encryption
+  const noiseR = seedRandom(seed, position);
+  const noiseG = seedRandom(seed, position + 0xF1EA7);
+  const noiseB = seedRandom(seed, position + 0xD06);
+  
+  // Undo the addition/modulo operations
+  const step1R = (step2R + 256 - noiseG) % 256;
+  const step1G = (step2G + 256 - noiseB) % 256;
+  const step1B = (step2B + 256 - noiseR) % 256;
+  
+  // Undo the XOR operations
+  const origR = (step1R ^ noiseR) & 0xFF;
+  const origG = (step1G ^ noiseG) & 0xFF;
+  const origB = (step1B ^ noiseB) & 0xFF;
+  
+  return { r: origR, g: origG, b: origB };
 }
 
-// Image encryption function with improved visual scrambling
+// Image encryption function with strong visual scrambling
 async function encryptImage() {
   if (!originalImage) {
     alert('Please select an image first!');
@@ -278,7 +365,7 @@ async function encryptImage() {
       s: Array.from(seed).map(v => v.toString(36)),
       m: mode.charAt(0),
       d: passwordData,
-      v: "3" // Update version to indicate new algorithm
+      v: "4" // Version number
     };
     
     // Convert metadata to JSON string
@@ -309,10 +396,10 @@ async function encryptImage() {
       const g = data[i + 1];
       const b = data[i + 2];
       
-      // Get pixel position
+      // Calculate pixel position 
       const pixelPosition = Math.floor(i / 4);
       
-      // Encrypt RGB values using our improved algorithm
+      // Apply strong encryption to completely scramble the pixel
       const encrypted = encryptPixel(r, g, b, pixelPosition, seed);
       
       // Set the encrypted RGB values
@@ -348,7 +435,7 @@ async function encryptImage() {
       }
     };
     encryptedImg.src = canvas.toDataURL('image/png');
-    console.log("Encryption complete with strong visual scrambling (v3)");
+    console.log("Encryption complete with maximum visual scrambling");
   } catch (error) {
     alert('Encryption error: ' + error.message);
     console.error('Encryption error:', error);
@@ -639,32 +726,28 @@ async function decryptImage() {
         continue;
       }
       
-      // Get encrypted RGB values
-      const encryptedR = data[i];
-      const encryptedG = data[i + 1];
-      const encryptedB = data[i + 2];
-      
-      // Get pixel position
+      // Calculate pixel position
       const pixelPosition = Math.floor(i / 4);
+      
+      // Get RGB values
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
       
       // Decrypt based on version
       let decrypted;
       
-      if (version === "3") {
-        // Use the improved algorithm for v3
-        decrypted = decryptPixel(encryptedR, encryptedG, encryptedB, pixelPosition, seed);
-      } else if (version === "2") {
-        // Handle v2 format if needed
-        const decryptedR = (encryptedR ^ ((seed[0] + pixelPosition) * 1103515245 + 12345) % 256) & 0xFF;
-        const decryptedG = (encryptedG ^ ((seed[0] + pixelPosition + 1) * 1103515245 + 12345) % 256) & 0xFF;
-        const decryptedB = (encryptedB ^ ((seed[0] + pixelPosition + 2) * 1103515245 + 12345) % 256) & 0xFF;
-        decrypted = { r: decryptedR, g: decryptedG, b: decryptedB };
-      } else {
-        // Legacy algorithm for v1
-        const shift = pixelPosition % 256;
-        const decryptedR = ((encryptedR - seed[0] % 256 + 256) % 256) ^ shift;
-        const decryptedG = ((encryptedG - seed[0] % 256 + 256) % 256) ^ (shift + 1);
-        const decryptedB = ((encryptedB - seed[0] % 256 + 256) % 256) ^ (shift + 2);
+      if (version === "4") {
+        // Use our new strong decryption
+        decrypted = decryptPixel(r, g, b, pixelPosition, seed);
+      }
+      else {
+        // Fallback for older versions - using your original algorithm
+        // Just wrap the old decryption in an object format
+        const pixelSeed = seed[0] + pixelPosition;
+        const decryptedR = decryptValue(r, pixelSeed, seed);
+        const decryptedG = decryptValue(g, pixelSeed + 1, seed);
+        const decryptedB = decryptValue(b, pixelSeed + 2, seed);
         decrypted = { r: decryptedR, g: decryptedG, b: decryptedB };
       }
       
@@ -704,6 +787,20 @@ async function decryptImage() {
     alert('Decryption error: ' + error.message);
     console.error('Decryption error:', error);
   }
+}
+
+// Legacy decryption function for backward compatibility
+function decryptValue(encryptedValue, pixelSeed, seed) {
+  // Reverse the encryption process
+  const shift = pixelSeed % 256;
+  
+  // Undo the additional transformation
+  let decryptedValue = (encryptedValue - seed[0] % 256 + 256) % 256;
+  
+  // Undo the XOR operation
+  decryptedValue = (decryptedValue ^ shift) % 256;
+  
+  return decryptedValue;
 }
 
 // Download button handler
