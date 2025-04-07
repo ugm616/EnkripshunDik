@@ -256,7 +256,7 @@ async function modifySeedWithPassword(seed) {
   };
 }
 
-// Image encryption function
+// Image encryption function - UPDATED to exclude steganography area
 async function encryptImage() {
   if (!originalImage) {
     alert('Please select an image first!');
@@ -276,7 +276,7 @@ async function encryptImage() {
     const data = imageData.data;
     
     // Make sure image is large enough to hold metadata
-    const minPixels = 256; // UPDATED: Need at least 256 pixels for 1KB of metadata
+    const minPixels = 256;
     if (canvas.width * canvas.height < minPixels) {
       throw new Error("Image too small to encrypt - needs at least 256 pixels");
     }
@@ -287,8 +287,37 @@ async function encryptImage() {
     // Modify seed with password
     const { seed, mode, data: passwordData } = await modifySeedWithPassword(baseSeed);
     
-    // Process each pixel with the encryption algorithm (whole image)
+    // Create compact metadata
+    const metadata = {
+      s: Array.from(seed).map(v => v.toString(36)),
+      m: mode.charAt(0),
+      d: passwordData,
+      v: "1"
+    };
+    
+    // Convert metadata to JSON string
+    const metadataStr = JSON.stringify(metadata);
+    console.log("Embedding metadata:", metadataStr);
+    
+    // Calculate steganography area size
+    const signature = "ENKRPSHN";
+    const metadataBytes = new TextEncoder().encode(metadataStr);
+    const metadataLength = metadataBytes.length;
+    const totalBytesNeeded = signature.length + 4 + metadataLength;
+    const totalBitsNeeded = totalBytesNeeded * 8;
+    const startOffset = 1000; // Same as in embedSteganography
+    
+    // Calculate end of steganography area
+    const endOffset = startOffset + (totalBitsNeeded * 4); // Each bit uses 4 bytes (RGBA)
+    console.log(`Steganography area: ${startOffset} to ${endOffset}`);
+    
+    // Process each pixel with the encryption algorithm (EXCLUDING the steganography area)
     for (let i = 0; i < data.length; i += 4) {
+      // Skip steganography area
+      if (i >= startOffset && i < endOffset) {
+        continue;
+      }
+      
       // Get RGB values (ignore alpha)
       const r = data[i];
       const g = data[i + 1];
@@ -320,19 +349,7 @@ async function encryptImage() {
       // Alpha remains unchanged
     }
     
-    // Create compact metadata
-    const metadata = {
-      s: Array.from(seed).map(v => v.toString(36)), // Convert to base36 for shorter strings
-      m: mode.charAt(0), // 's' for simple, 'a' for advanced
-      d: passwordData,
-      v: "1"
-    };
-    
-    // Convert metadata to JSON string
-    const metadataStr = JSON.stringify(metadata);
-    console.log("Embedding metadata:", metadataStr);
-    
-    // Use robust LSB steganography instead of raw pixel data
+    // Use robust LSB steganography after encryption
     embedSteganography(data, canvas.width, canvas.height, metadataStr);
     
     // Put the encrypted data back onto the canvas
@@ -365,8 +382,7 @@ async function encryptImage() {
   }
 }
 
-// NEW: Embed metadata using LSB (Least Significant Bit) steganography
-// This survives PNG compression because it only modifies the least significant bits
+// Embed metadata using LSB (Least Significant Bit) steganography
 function embedSteganography(data, width, height, metadataStr) {
   // First, add a solid signature pattern that we can easily detect
   const signature = "ENKRPSHN"; // Our signature
@@ -440,7 +456,7 @@ function embedSteganography(data, width, height, metadataStr) {
   console.log(`Steganography complete: embedded ${byteIndex} bytes starting at offset ${startOffset}`);
 }
 
-// NEW: Read metadata using LSB steganography
+// Read metadata using LSB steganography
 async function checkForSteganography(img) {
   try {
     // Create a canvas to examine the image
@@ -554,7 +570,7 @@ function encryptValue(value, pixelSeed, seed) {
   return encryptedValue;
 }
 
-// Image decryption function
+// Image decryption function - UPDATED to exclude steganography area
 async function decryptImage() {
   if (!originalImage) {
     alert('Please select an encrypted image first!');
@@ -637,8 +653,31 @@ async function decryptImage() {
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
     
-    // Process each pixel with the decryption algorithm
+    // Calculate steganography area size
+    const signature = "ENKRPSHN";
+    const metadataStr = JSON.stringify({
+      s: Array.from(seed).map(v => v.toString(36)),
+      m: storedPasswordMode.charAt(0),
+      d: storedPasswordData,
+      v: "1"
+    });
+    const metadataBytes = new TextEncoder().encode(metadataStr);
+    const metadataLength = metadataBytes.length;
+    const totalBytesNeeded = signature.length + 4 + metadataLength;
+    const totalBitsNeeded = totalBytesNeeded * 8;
+    const startOffset = 1000; // Same as in embedSteganography
+    
+    // Calculate end of steganography area
+    const endOffset = startOffset + (totalBitsNeeded * 4); // Each bit uses 4 bytes (RGBA)
+    console.log(`Steganography area: ${startOffset} to ${endOffset}`);
+    
+    // Process each pixel with the decryption algorithm (EXCLUDING the steganography area)
     for (let i = 0; i < data.length; i += 4) {
+      // Skip steganography area
+      if (i >= startOffset && i < endOffset) {
+        continue;
+      }
+      
       // Get encrypted RGB values
       const encryptedR = data[i];
       const encryptedG = data[i + 1];
