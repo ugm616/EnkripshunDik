@@ -14,7 +14,12 @@ document.getElementById('image-input').addEventListener('change', function(e) {
       img.onload = function() {
         originalImage = img;
         displayImagePreview(img, 'image-preview');
-        document.getElementById('preview-placeholder').style.display = 'none';
+        
+        // FIX: Add null check before accessing style property
+        const placeholder = document.getElementById('preview-placeholder');
+        if (placeholder) {
+          placeholder.style.display = 'none';
+        }
       };
       img.src = event.target.result;
     };
@@ -90,8 +95,10 @@ async function generateFileHash(file) {
 // Display image in a container
 function displayImagePreview(img, containerId) {
   const container = document.getElementById(containerId);
-  container.innerHTML = '';
-  container.appendChild(img.cloneNode());
+  if (container) {
+    container.innerHTML = '';
+    container.appendChild(img.cloneNode());
+  }
 }
 
 // Helper functions from the original script
@@ -306,14 +313,10 @@ async function encryptImage() {
 
 // Helper function to encrypt a single numeric value
 function encryptValue(value, pixelSeed, seed) {
-  // We'll use a simplified version of the text encryption algorithm
-  // Convert value to binary and back to simulate the original algorithm's flow
-  // But adapt to ensure we get a valid RGB value (0-255) at the end
-  
   // Use the seed to create a "shift" for the value
   const shift = pixelSeed % 256;
   
-  // Apply XOR operation (common in encryption)
+  // Apply XOR operation
   let encryptedValue = (parseInt(value) ^ shift) % 256;
   
   // Apply additional transformation based on the first seed value
@@ -325,6 +328,8 @@ function encryptValue(value, pixelSeed, seed) {
 // Display encrypted image and store seed for decryption
 function displayEncryptedImage(img, seed, passwordMode, passwordData) {
   const outputContainer = document.getElementById('output-image');
+  if (!outputContainer) return;
+  
   outputContainer.innerHTML = '';
   
   // Store encryption metadata in the image's dataset for decryption
@@ -337,12 +342,16 @@ function displayEncryptedImage(img, seed, passwordMode, passwordData) {
   resultImage = img;
   
   // Enable download button
-  document.getElementById('download-btn').disabled = false;
+  const downloadBtn = document.getElementById('download-btn');
+  if (downloadBtn) {
+    downloadBtn.disabled = false;
+  }
 }
 
 // Image decryption function
 async function decryptImage() {
   const outputContainer = document.getElementById('output-image');
+  if (!outputContainer) return;
   
   // Check if there's an encrypted image
   if (!outputContainer.querySelector('img')) {
@@ -362,8 +371,13 @@ async function decryptImage() {
     }
     
     // Verify the correct password is being used
-    const currentPasswordMode = document.querySelector('input[name="password-mode"]:checked').value;
+    const passwordModeElement = document.querySelector('input[name="password-mode"]:checked');
+    if (!passwordModeElement) {
+      alert('Please select a password mode.');
+      return;
+    }
     
+    const currentPasswordMode = passwordModeElement.value;
     if (currentPasswordMode !== storedPasswordMode) {
       alert(`This image was encrypted with ${storedPasswordMode} mode. Please switch to that mode.`);
       return;
@@ -375,6 +389,11 @@ async function decryptImage() {
     if (storedPasswordMode === 'simple') {
       // Get password from input
       const passwordInput = document.getElementById('simple-password');
+      if (!passwordInput) {
+        alert('Simple password input field not found.');
+        return;
+      }
+      
       const password = passwordInput.value.trim();
       
       // Validate password
