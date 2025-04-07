@@ -143,18 +143,23 @@ function get1024BitSeed() {
   return array;
 }
 
-// Seeded random number generator for pixel operations
-function seededRandom(seed) {
-  let x = Math.sin(seed) * 10000;
-  return x - Math.floor(x);
+// Generate a strong pseudo-random number based on seed and position
+function strongRandom(seed, position) {
+  // Apply multiple mixing operations to increase randomness
+  let hash = position ^ seed[position % seed.length];
+  
+  // Jenkins One-at-a-Time Hash for better distribution
+  hash += (hash << 10);
+  hash ^= (hash >> 6);
+  hash += (hash << 3);
+  hash ^= (hash >> 11);
+  hash += (hash << 15);
+  
+  // Add in more seed bytes to increase entropy
+  hash ^= seed[(position * 7 + 3) % seed.length];
+  
+  return hash % 256;
 }
-
-// Create a pool of characters (uppercase, lowercase, and non-English letters)
-const characterPool = [
-  'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-  'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'
-];
 
 // Modify seed with password
 async function modifySeedWithPassword(seed) {
@@ -207,26 +212,37 @@ async function modifySeedWithPassword(seed) {
   };
 }
 
-// NEW SIMPLIFIED ENCRYPTION/DECRYPTION ALGORITHM
-// Encrypt a single value using XOR cipher - much more reversible!
-function simpleEncryptValue(value, pixelSeed, seed) {
-  // Create a deterministic but varying encryption key for each pixel
-  const pixelKey = ((seed[0] + pixelSeed) * 1103515245 + 12345) % 256;
+// IMPROVED ENCRYPTION - Creates visually scrambled images
+function encryptPixel(r, g, b, position, seed) {
+  // Generate three different random values based on position and seed
+  const randR = strongRandom(seed, position);
+  const randG = strongRandom(seed, position + 1);
+  const randB = strongRandom(seed, position + 2);
   
-  // Simple XOR encryption (perfectly reversible)
-  return (value ^ pixelKey) & 0xFF;
+  // Apply strong encryption that significantly changes pixel values
+  const encR = (r + randR) % 256;
+  const encG = (g + randG) % 256;
+  const encB = (b + randB) % 256;
+  
+  return { r: encR, g: encG, b: encB };
 }
 
-// Decrypt a single value - exact inverse of encryption
-function simpleDecryptValue(value, pixelSeed, seed) {
-  // Recreate the same key used for encryption
-  const pixelKey = ((seed[0] + pixelSeed) * 1103515245 + 12345) % 256;
+// Decrypt a pixel - exact inverse of encryption
+function decryptPixel(r, g, b, position, seed) {
+  // Generate the same random values as during encryption
+  const randR = strongRandom(seed, position);
+  const randG = strongRandom(seed, position + 1);
+  const randB = strongRandom(seed, position + 2);
   
-  // XOR is its own inverse, so applying it again decrypts
-  return (value ^ pixelKey) & 0xFF;
+  // Reverse the encryption operation
+  const decR = (r - randR + 256) % 256;
+  const decG = (g - randG + 256) % 256;
+  const decB = (b - randB + 256) % 256;
+  
+  return { r: decR, g: decG, b: decB };
 }
 
-// Image encryption function - with steganography protection and simplified algorithm
+// Image encryption function with improved visual scrambling
 async function encryptImage() {
   if (!originalImage) {
     alert('Please select an image first!');
@@ -262,7 +278,7 @@ async function encryptImage() {
       s: Array.from(seed).map(v => v.toString(36)),
       m: mode.charAt(0),
       d: passwordData,
-      v: "2" // Update version to indicate new algorithm
+      v: "3" // Update version to indicate new algorithm
     };
     
     // Convert metadata to JSON string
@@ -293,18 +309,16 @@ async function encryptImage() {
       const g = data[i + 1];
       const b = data[i + 2];
       
-      // Create pixel identifier 
-      const pixelIndex = Math.floor(i / 4);
+      // Get pixel position
+      const pixelPosition = Math.floor(i / 4);
       
-      // Encrypt RGB values using simple, perfectly reversible algorithm
-      const encryptedR = simpleEncryptValue(r, pixelIndex, seed);
-      const encryptedG = simpleEncryptValue(g, pixelIndex + 1, seed);
-      const encryptedB = simpleEncryptValue(b, pixelIndex + 2, seed);
+      // Encrypt RGB values using our improved algorithm
+      const encrypted = encryptPixel(r, g, b, pixelPosition, seed);
       
-      // Set the modified RGB values
-      data[i] = encryptedR;
-      data[i + 1] = encryptedG;
-      data[i + 2] = encryptedB;
+      // Set the encrypted RGB values
+      data[i] = encrypted.r;
+      data[i + 1] = encrypted.g;
+      data[i + 2] = encrypted.b;
       // Alpha remains unchanged
     }
     
@@ -334,7 +348,7 @@ async function encryptImage() {
       }
     };
     encryptedImg.src = canvas.toDataURL('image/png');
-    console.log("Encryption complete with new algorithm (v2)");
+    console.log("Encryption complete with strong visual scrambling (v3)");
   } catch (error) {
     alert('Encryption error: ' + error.message);
     console.error('Encryption error:', error);
@@ -514,7 +528,7 @@ async function checkForSteganography(img) {
   }
 }
 
-// Image decryption function - with steganography protection and simplified algorithm
+// Image decryption function with support for all versions
 async function decryptImage() {
   if (!originalImage) {
     alert('Please select an encrypted image first!');
@@ -630,28 +644,34 @@ async function decryptImage() {
       const encryptedG = data[i + 1];
       const encryptedB = data[i + 2];
       
-      // Get pixel identifier
-      const pixelIndex = Math.floor(i / 4);
+      // Get pixel position
+      const pixelPosition = Math.floor(i / 4);
       
       // Decrypt based on version
-      let decryptedR, decryptedG, decryptedB;
+      let decrypted;
       
-      if (version === "2") {
-        // Use the simplified algorithm for v2
-        decryptedR = simpleDecryptValue(encryptedR, pixelIndex, seed);
-        decryptedG = simpleDecryptValue(encryptedG, pixelIndex + 1, seed);
-        decryptedB = simpleDecryptValue(encryptedB, pixelIndex + 2, seed);
+      if (version === "3") {
+        // Use the improved algorithm for v3
+        decrypted = decryptPixel(encryptedR, encryptedG, encryptedB, pixelPosition, seed);
+      } else if (version === "2") {
+        // Handle v2 format if needed
+        const decryptedR = (encryptedR ^ ((seed[0] + pixelPosition) * 1103515245 + 12345) % 256) & 0xFF;
+        const decryptedG = (encryptedG ^ ((seed[0] + pixelPosition + 1) * 1103515245 + 12345) % 256) & 0xFF;
+        const decryptedB = (encryptedB ^ ((seed[0] + pixelPosition + 2) * 1103515245 + 12345) % 256) & 0xFF;
+        decrypted = { r: decryptedR, g: decryptedG, b: decryptedB };
       } else {
-        // Use the legacy algorithm for v1
-        decryptedR = decryptValue(encryptedR, pixelIndex, seed);
-        decryptedG = decryptValue(encryptedG, pixelIndex + 1, seed);
-        decryptedB = decryptValue(encryptedB, pixelIndex + 2, seed);
+        // Legacy algorithm for v1
+        const shift = pixelPosition % 256;
+        const decryptedR = ((encryptedR - seed[0] % 256 + 256) % 256) ^ shift;
+        const decryptedG = ((encryptedG - seed[0] % 256 + 256) % 256) ^ (shift + 1);
+        const decryptedB = ((encryptedB - seed[0] % 256 + 256) % 256) ^ (shift + 2);
+        decrypted = { r: decryptedR, g: decryptedG, b: decryptedB };
       }
       
       // Set the decrypted RGB values
-      data[i] = decryptedR;
-      data[i + 1] = decryptedG;
-      data[i + 2] = decryptedB;
+      data[i] = decrypted.r;
+      data[i + 1] = decrypted.g;
+      data[i + 2] = decrypted.b;
       // Alpha remains unchanged
     }
     
@@ -684,20 +704,6 @@ async function decryptImage() {
     alert('Decryption error: ' + error.message);
     console.error('Decryption error:', error);
   }
-}
-
-// Legacy decryption function for backward compatibility
-function decryptValue(encryptedValue, pixelSeed, seed) {
-  // Reverse the encryption process
-  const shift = pixelSeed % 256;
-  
-  // Undo the additional transformation
-  let decryptedValue = (encryptedValue - seed[0] % 256 + 256) % 256;
-  
-  // Undo the XOR operation
-  decryptedValue = (decryptedValue ^ shift) % 256;
-  
-  return decryptedValue;
 }
 
 // Download button handler
