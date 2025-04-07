@@ -1,0 +1,193 @@
+body {
+  font-family: 'Aldrich', sans-serif;
+  background-color: #1a1a1a;
+  color: #ffffff;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+.container {
+  text-align: center;
+  width: 500px;
+}
+
+h1 {
+  font-size: 2rem;
+  margin-bottom: 20px;
+}
+
+.image-input-container {
+  width: 100%;
+  margin: 10px 0;
+  position: relative;
+}
+
+.image-preview, .image-output {
+  width: 100%;
+  height: 200px;
+  margin: 10px 0;
+  background-color: #333;
+  color: #fff;
+  border: 1px solid #555;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-family: 'Aldrich', sans-serif;
+  font-size: 1rem;
+  overflow: hidden;
+}
+
+.image-preview img, .image-output img {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+input[type="file"] {
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
+  overflow: hidden;
+  position: absolute;
+  z-index: -1;
+}
+
+.file-label {
+  background-color: #555;
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  cursor: pointer;
+  font-family: 'Aldrich', sans-serif;
+  font-size: 1rem;
+  transition: background-color 0.3s ease;
+  display: inline-block;
+  margin: 10px 0;
+}
+
+.file-label:hover {
+  background-color: #777;
+}
+
+/* Password Section Styles */
+.password-section {
+  background-color: #333;
+  border: 1px solid #555;
+  padding: 15px;
+  margin: 15px 0;
+  border-radius: 4px;
+}
+
+.password-mode-selector {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 15px;
+}
+
+.password-mode-selector label {
+  cursor: pointer;
+  padding: 5px 10px;
+  border: 1px solid #555;
+  border-radius: 3px;
+  transition: background-color 0.3s ease;
+}
+
+.password-mode-selector label:hover {
+  background-color: #444;
+}
+
+.password-mode-selector input[type="radio"] {
+  margin-right: 5px;
+}
+
+.password-container {
+  margin-top: 10px;
+}
+
+input[type="password"] {
+  width: 100%;
+  background-color: #222;
+  color: #fff;
+  border: 1px solid #555;
+  padding: 10px;
+  font-family: 'Aldrich', sans-serif;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
+.password-file-preview {
+  width: 100%;
+  height: 60px;
+  background-color: #222;
+  color: #aaa;
+  border: 1px solid #555;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-family: 'Aldrich', sans-serif;
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+
+.password-file-preview.has-file {
+  color: #fff;
+  font-weight: bold;
+}
+
+.hidden {
+  display: none;
+}
+
+/* Button Styles */
+.buttons {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+button {
+  background-color: #555;
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  cursor: pointer;
+  font-family: 'Aldrich', sans-serif;
+  font-size: 1rem;
+  transition: background-color 0.3s ease;
+}
+
+button:hover {
+  background-color: #777;
+}
+
+button:disabled {
+  background-color: #444;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+button:disabled:hover {
+  background-color: #444;
+}
+
+.output-container {
+  margin-top: 20px;
+  position: relative;
+}
+
+#download-btn {
+  margin-top: 10px;
+  background-color: #444;
+  padding: 8px 15px;
+}
+
+#download-btn:hover:not(:disabled) {
+  background-color: #666;
+}
