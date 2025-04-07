@@ -140,8 +140,9 @@ input[type="password"] {
   font-weight: bold;
 }
 
+/* This is important for hiding the container */
 .hidden {
-  display: none;
+  display: none !important;
 }
 
 /* Button Styles */
