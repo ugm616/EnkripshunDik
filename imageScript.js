@@ -79,7 +79,7 @@ async function checkForEmbeddedMetadata(img) {
     const data = imageData.data;
     
     // Make sure image is large enough
-    if (data.length < 400) return null; // Need at least 100 pixels
+    if (data.length < 1024) return null; // Need at least 100 pixels
     
     // Calculate reserved area start
     const dataLimit = data.length - 400;
@@ -373,7 +373,7 @@ async function encryptImage() {
     const { seed, mode, data: passwordData } = await modifySeedWithPassword(baseSeed);
     
     // Reserve the last rows of pixels for metadata
-    const reservedPixels = 100;
+    const reservedPixels = 256;
     const reservedBytes = reservedPixels * 4;
     const dataLimit = data.length - reservedBytes;
     
