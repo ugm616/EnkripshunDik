@@ -136,38 +136,6 @@ function displayImagePreview(img, containerId) {
   }
 }
 
-// Helper functions from the original script
-function textToBinary(text) {
-  return text.split('').map(char => char.charCodeAt(0).toString(2).padStart(8, '0')).join('');
-}
-
-function binaryToCounts(binary) {
-  let counts = [];
-  let currentChar = binary[0];
-  let count = 1;
-  for (let i = 1; i < binary.length; i++) {
-    if (binary[i] === currentChar) {
-      count++;
-    } else {
-      counts.push(count);
-      currentChar = binary[i];
-      count = 1;
-    }
-  }
-  counts.push(count);
-  return counts.join('');
-}
-
-// Create a pool of characters (uppercase, lowercase, and non-English letters)
-const characterPool = [
-  'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-  'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-  'ä', 'é', 'ñ', 'ø', 'ü', 'ç', 'ß', 'å', 'æ', 'ö', 'î', 'â', 'ê', 'û', 'ô', 'è', 'ï', 'ë', 'ì', 'ò', 'ù', 'ã', 'õ', 'á', 'í', 'ó',
-  'Ä', 'É', 'Ñ', 'Ø', 'Ü', 'Ç', 'Å', 'Æ', 'Ö', 'Î', 'Â', 'Ê', 'Û', 'Ô', 'È', 'Ï', 'Ë', 'Ì', 'Ò', 'Ù', 'Ã', 'Õ', 'Á', 'Í', 'Ó',
-  'α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ', 'λ', 'μ', 'ν', 'ξ', 'ο', 'π', 'ρ', 'σ', 'τ', 'υ', 'φ', 'χ', 'ψ', 'ω',
-  'А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'Й', 'К', 'Л', 'М', 'Н', 'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф', 'Х', 'Ц', 'Ч', 'Ш', 'Щ'
-];
-
 // Cryptographically secure random number generator for 1024-bit seed
 function get1024BitSeed() {
   const array = new Uint32Array(32); // 32 x 32-bit = 1024-bit
@@ -175,35 +143,18 @@ function get1024BitSeed() {
   return array;
 }
 
-// Seeded random number generator (for shuffling)
+// Seeded random number generator for pixel operations
 function seededRandom(seed) {
   let x = Math.sin(seed) * 10000;
   return x - Math.floor(x);
 }
 
-// Shuffle the character pool using a 1024-bit seed
-function shuffleArrayWithSeed(array, seed) {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(seededRandom(seed) * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
-    seed++; // Update the seed for the next iteration
-  }
-  return array;
-}
-
-// Generate the asciiMap using a 1024-bit seed
-function createAsciiMap(seed) {
-  const shuffledPool = shuffleArrayWithSeed([...characterPool], seed);
-  const asciiMap = {
-    1: shuffledPool.slice(0, 26), // First 26 characters for digit 1
-    2: shuffledPool.slice(26, 52), // Next 26 characters for digit 2
-    3: shuffledPool.slice(52, 78), // Next 26 characters for digit 3
-    4: shuffledPool.slice(78, 104), // Next 26 characters for digit 4
-    5: shuffledPool.slice(104, 130), // Next 26 characters for digit 5
-    6: shuffledPool.slice(130, 156) // Remaining characters for digit 6
-  };
-  return asciiMap;
-}
+// Create a pool of characters (uppercase, lowercase, and non-English letters)
+const characterPool = [
+  'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+  'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+  '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'
+];
 
 // Modify seed with password
 async function modifySeedWithPassword(seed) {
@@ -256,7 +207,26 @@ async function modifySeedWithPassword(seed) {
   };
 }
 
-// Image encryption function - UPDATED to exclude steganography area
+// NEW SIMPLIFIED ENCRYPTION/DECRYPTION ALGORITHM
+// Encrypt a single value using XOR cipher - much more reversible!
+function simpleEncryptValue(value, pixelSeed, seed) {
+  // Create a deterministic but varying encryption key for each pixel
+  const pixelKey = ((seed[0] + pixelSeed) * 1103515245 + 12345) % 256;
+  
+  // Simple XOR encryption (perfectly reversible)
+  return (value ^ pixelKey) & 0xFF;
+}
+
+// Decrypt a single value - exact inverse of encryption
+function simpleDecryptValue(value, pixelSeed, seed) {
+  // Recreate the same key used for encryption
+  const pixelKey = ((seed[0] + pixelSeed) * 1103515245 + 12345) % 256;
+  
+  // XOR is its own inverse, so applying it again decrypts
+  return (value ^ pixelKey) & 0xFF;
+}
+
+// Image encryption function - with steganography protection and simplified algorithm
 async function encryptImage() {
   if (!originalImage) {
     alert('Please select an image first!');
@@ -292,7 +262,7 @@ async function encryptImage() {
       s: Array.from(seed).map(v => v.toString(36)),
       m: mode.charAt(0),
       d: passwordData,
-      v: "1"
+      v: "2" // Update version to indicate new algorithm
     };
     
     // Convert metadata to JSON string
@@ -323,24 +293,13 @@ async function encryptImage() {
       const g = data[i + 1];
       const b = data[i + 2];
       
-      // Convert to binary strings
-      const rBinary = r.toString(2).padStart(8, '0');
-      const gBinary = g.toString(2).padStart(8, '0');
-      const bBinary = b.toString(2).padStart(8, '0');
-      
-      // Apply the binary counts encryption logic from the original algorithm
-      const rCounts = binaryToCounts(rBinary);
-      const gCounts = binaryToCounts(gBinary);
-      const bCounts = binaryToCounts(bBinary);
-      
-      // Create pixel signature for consistent encryption
+      // Create pixel identifier 
       const pixelIndex = Math.floor(i / 4);
-      const pixelSeed = seed[0] + pixelIndex;
       
-      // Encrypt RGB using the original technique
-      const encryptedR = encryptValue(rCounts, pixelSeed, seed);
-      const encryptedG = encryptValue(gCounts, pixelSeed + 1, seed);
-      const encryptedB = encryptValue(bCounts, pixelSeed + 2, seed);
+      // Encrypt RGB values using simple, perfectly reversible algorithm
+      const encryptedR = simpleEncryptValue(r, pixelIndex, seed);
+      const encryptedG = simpleEncryptValue(g, pixelIndex + 1, seed);
+      const encryptedB = simpleEncryptValue(b, pixelIndex + 2, seed);
       
       // Set the modified RGB values
       data[i] = encryptedR;
@@ -375,7 +334,7 @@ async function encryptImage() {
       }
     };
     encryptedImg.src = canvas.toDataURL('image/png');
-    console.log("Encryption complete");
+    console.log("Encryption complete with new algorithm (v2)");
   } catch (error) {
     alert('Encryption error: ' + error.message);
     console.error('Encryption error:', error);
@@ -405,7 +364,6 @@ function embedSteganography(data, width, height, metadataStr) {
   // Start embedding data at a specific offset to avoid header issues
   const startOffset = 1000; // Start at pixel 250 (x4 for RGBA)
   let byteIndex = 0;
-  let bitIndex = 0;
   
   // Embed the signature first
   for (let i = 0; i < signature.length; i++) {
@@ -547,7 +505,7 @@ async function checkForSteganography(img) {
       seed: new Uint32Array(metadata.s.map(v => parseInt(v, 36))), // Convert from base36 back to numbers
       mode: metadata.m === 's' ? 'simple' : 'advanced',
       data: metadata.d,
-      version: metadata.v
+      version: metadata.v || "1" // Default to version 1 if not specified
     };
     
   } catch (error) {
@@ -556,21 +514,7 @@ async function checkForSteganography(img) {
   }
 }
 
-// Helper function to encrypt a single numeric value
-function encryptValue(value, pixelSeed, seed) {
-  // Use the seed to create a "shift" for the value
-  const shift = pixelSeed % 256;
-  
-  // Apply XOR operation
-  let encryptedValue = (parseInt(value) ^ shift) % 256;
-  
-  // Apply additional transformation based on the first seed value
-  encryptedValue = (encryptedValue + seed[0] % 256) % 256;
-  
-  return encryptedValue;
-}
-
-// Image decryption function - UPDATED to exclude steganography area
+// Image decryption function - with steganography protection and simplified algorithm
 async function decryptImage() {
   if (!originalImage) {
     alert('Please select an encrypted image first!');
@@ -592,6 +536,9 @@ async function decryptImage() {
     const seed = metadata.seed;
     const storedPasswordMode = metadata.mode;
     const storedPasswordData = metadata.data;
+    const version = metadata.version || "1";
+    
+    console.log(`Image encrypted with algorithm version: ${version}`);
     
     // Verify the correct password is being used
     const passwordModeElement = document.querySelector('input[name="password-mode"]:checked');
@@ -659,7 +606,7 @@ async function decryptImage() {
       s: Array.from(seed).map(v => v.toString(36)),
       m: storedPasswordMode.charAt(0),
       d: storedPasswordData,
-      v: "1"
+      v: version
     });
     const metadataBytes = new TextEncoder().encode(metadataStr);
     const metadataLength = metadataBytes.length;
@@ -683,14 +630,23 @@ async function decryptImage() {
       const encryptedG = data[i + 1];
       const encryptedB = data[i + 2];
       
-      // Create pixel signature for consistent decryption
+      // Get pixel identifier
       const pixelIndex = Math.floor(i / 4);
-      const pixelSeed = seed[0] + pixelIndex;
       
-      // Decrypt RGB values
-      const decryptedR = decryptValue(encryptedR, pixelSeed, seed);
-      const decryptedG = decryptValue(encryptedG, pixelSeed + 1, seed);
-      const decryptedB = decryptValue(encryptedB, pixelSeed + 2, seed);
+      // Decrypt based on version
+      let decryptedR, decryptedG, decryptedB;
+      
+      if (version === "2") {
+        // Use the simplified algorithm for v2
+        decryptedR = simpleDecryptValue(encryptedR, pixelIndex, seed);
+        decryptedG = simpleDecryptValue(encryptedG, pixelIndex + 1, seed);
+        decryptedB = simpleDecryptValue(encryptedB, pixelIndex + 2, seed);
+      } else {
+        // Use the legacy algorithm for v1
+        decryptedR = decryptValue(encryptedR, pixelIndex, seed);
+        decryptedG = decryptValue(encryptedG, pixelIndex + 1, seed);
+        decryptedB = decryptValue(encryptedB, pixelIndex + 2, seed);
+      }
       
       // Set the decrypted RGB values
       data[i] = decryptedR;
@@ -730,7 +686,7 @@ async function decryptImage() {
   }
 }
 
-// Helper function to decrypt a single value
+// Legacy decryption function for backward compatibility
 function decryptValue(encryptedValue, pixelSeed, seed) {
   // Reverse the encryption process
   const shift = pixelSeed % 256;
