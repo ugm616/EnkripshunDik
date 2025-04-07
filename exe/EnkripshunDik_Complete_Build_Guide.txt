@@ -1,0 +1,852 @@
+=====================================================================
+ENKRIPSHUNDIK IMAGE ENCRYPTION TOOL - COMPREHENSIVE BUILD GUIDE
+=====================================================================
+Author: ugm616
+Repository: ugm616/EnkripshunDik
+Date: 2025-04-07 14:46:24
+Version: 1.0
+
+This guide provides detailed instructions for building a standalone
+version of the EnkripshunDik Image Encryption Tool for various
+operating systems. Follow the appropriate chapter for your target
+platform.
+
+=====================================================================
+TABLE OF CONTENTS
+=====================================================================
+1. Prerequisites and General Information
+2. Windows Build Guide
+3. macOS Build Guide
+4. Linux Build Guide
+5. Android Build Guide (Using Kivy)
+6. Cross-Platform Packaging with Briefcase (BeeWare)
+7. Common Issues and Troubleshooting
+8. Advanced Customizations
+
+=====================================================================
+CHAPTER 1: PREREQUISITES AND GENERAL INFORMATION
+=====================================================================
+
+The EnkripshunDik Image Encryption Tool is written in Python and uses
+the following libraries:
+- Pillow (PIL) for image processing
+- NumPy for numerical operations
+- Tkinter for the GUI (built into Python)
+
+Before building for any platform, ensure you have:
+1. Python 3.7+ installed
+2. Basic command-line knowledge
+3. Git (optional, for downloading from repository)
+4. Internet connection (for downloading dependencies)
+
+The source code should be saved as `image_encryption_tool.py` in your
+working directory.
+
+=====================================================================
+CHAPTER 2: WINDOWS BUILD GUIDE
+=====================================================================
+
+2.1 SETTING UP THE WINDOWS BUILD ENVIRONMENT
+---------------------------------------------
+1. Install Python 3.7+ from https://www.python.org/downloads/windows/
+   - During installation, check "Add Python to PATH"
+   - Verify installation by opening Command Prompt and typing:
+
+     python --version
+
+2. Install required dependencies:
+
+   pip install pillow numpy pyinstaller
+
+3. Create a project folder:
+
+   mkdir EnkripshunDik
+   cd EnkripshunDik
+
+4. Save the Python script as `image_encryption_tool.py` in this folder
+
+5. (Optional) Add an icon file named `icon.ico` for Windows applications
+
+2.2 BASIC WINDOWS BUILD
+----------------------
+1. Open Command Prompt and navigate to your project folder:
+
+   cd path\to\EnkripshunDik
+
+2. Run PyInstaller with basic options:
+
+   pyinstaller --onefile --windowed --icon=icon.ico --name="EnkripshunDik" image_encryption_tool.py
+
+3. Find the executable in the `dist` folder
+   - The file will be named `EnkripshunDik.exe`
+
+2.3 ADVANCED WINDOWS BUILD OPTIONS
+--------------------------------
+For a more optimized Windows build:
+
+1. Create a .spec file first:
+
+   pyi-makespec --onefile --windowed --icon=icon.ico --name="EnkripshunDik" image_encryption_tool.py
+
+2. Edit the `EnkripshunDik.spec` file to customize build options:
+   - Add version information
+   - Include additional data files
+   - Configure UPX compression
+
+3. Build using the .spec file:
+
+   pyinstaller EnkripshunDik.spec
+
+4. For Windows installer creation, install NSIS (Nullsoft Scriptable Install System)
+   from https://nsis.sourceforge.io/Download
+
+5. Create an NSIS script (`installer.nsi`):
+
+   ; EnkripshunDik Installer Script
+   
+   !include "MUI2.nsh"
+   
+   Name "EnkripshunDik Image Encryption Tool"
+   OutFile "EnkripshunDik_Setup.exe"
+   InstallDir "$PROGRAMFILES\EnkripshunDik"
+   RequestExecutionLevel admin
+   
+   !insertmacro MUI_PAGE_WELCOME
+   !insertmacro MUI_PAGE_DIRECTORY
+   !insertmacro MUI_PAGE_INSTFILES
+   !insertmacro MUI_PAGE_FINISH
+   
+   !insertmacro MUI_UNPAGE_CONFIRM
+   !insertmacro MUI_UNPAGE_INSTFILES
+   
+   !insertmacro MUI_LANGUAGE "English"
+   
+   Section "Install"
+     SetOutPath $INSTDIR
+     File "dist\EnkripshunDik.exe"
+     CreateShortCut "$DESKTOP\EnkripshunDik.lnk" "$INSTDIR\EnkripshunDik.exe"
+     CreateDirectory "$SMPROGRAMS\EnkripshunDik"
+     CreateShortCut "$SMPROGRAMS\EnkripshunDik\EnkripshunDik.lnk" "$INSTDIR\EnkripshunDik.exe"
+     WriteUninstaller "$INSTDIR\uninstall.exe"
+   SectionEnd
+   
+   Section "Uninstall"
+     Delete "$INSTDIR\EnkripshunDik.exe"
+     Delete "$INSTDIR\uninstall.exe"
+     Delete "$DESKTOP\EnkripshunDik.lnk"
+     Delete "$SMPROGRAMS\EnkripshunDik\EnkripshunDik.lnk"
+     RMDir "$SMPROGRAMS\EnkripshunDik"
+     RMDir "$INSTDIR"
+   SectionEnd
+
+6. Compile the installer:
+
+   makensis installer.nsi
+
+2.4 CREATING PORTABLE WINDOWS VERSION
+-----------------------------------
+For a completely portable Windows version that runs from USB:
+
+1. Build with these options:
+
+   pyinstaller --onefile --windowed --icon=icon.ico --name="EnkripshunDik_Portable" image_encryption_tool.py
+
+2. Test the executable by running it from different locations
+   - Make sure it doesn't write settings to registry
+   - Verify it doesn't require admin privileges
+
+3. Create a batch file launcher (optional):
+
+   @echo off
+   start "" "%~dp0EnkripshunDik_Portable.exe"
+
+   Save as `Launch_EnkripshunDik.bat` alongside the executable
+
+4. Copy the executable (and launcher) to your USB drive
+
+
+=====================================================================
+CHAPTER 3: MACOS BUILD GUIDE
+=====================================================================
+
+3.1 SETTING UP THE MACOS BUILD ENVIRONMENT
+-----------------------------------------
+1. Install Python 3.7+ using one of these methods:
+   - From https://www.python.org/downloads/macos/
+   - Using Homebrew: `brew install python3`
+   - Using MacPorts: `sudo port install python39`
+
+2. Verify Python installation:
+
+   python3 --version
+
+3. Install required dependencies:
+
+   pip3 install pillow numpy pyinstaller
+
+4. Create a project folder:
+
+   mkdir EnkripshunDik
+   cd EnkripshunDik
+
+5. Save the Python script as `image_encryption_tool.py` in this folder
+
+6. (Optional) Create an icon file named `icon.icns` for macOS:
+   - Use `iconutil` to convert a .iconset folder to .icns
+   - Or use an online converter to create the .icns file
+
+3.2 BASIC MACOS BUILD
+--------------------
+1. Open Terminal and navigate to your project folder:
+
+   cd path/to/EnkripshunDik
+
+2. Run PyInstaller with macOS options:
+
+   pyinstaller --onefile --windowed --icon=icon.icns --name="EnkripshunDik" image_encryption_tool.py
+
+3. Find the application in the `dist` folder
+   - The file will be named `EnkripshunDik`
+   - For a proper macOS app bundle, use `--osx-bundle-identifier`
+
+3.3 CREATING A PROPER MACOS APP BUNDLE
+------------------------------------
+For a more polished macOS application:
+
+1. Create a .spec file with bundle identifier:
+
+   pyi-makespec --onefile --windowed --icon=icon.icns --osx-bundle-identifier="com.ugm616.enkripshundik" --name="EnkripshunDik" image_encryption_tool.py
+
+2. Edit the `EnkripshunDik.spec` file to add Info.plist data:
+
+   app = BUNDLE(exe,
+                name='EnkripshunDik.app',
+                icon='icon.icns',
+                bundle_identifier='com.ugm616.enkripshundik',
+                info_plist={
+                    'CFBundleShortVersionString': '1.0.0',
+                    'CFBundleName': 'EnkripshunDik',
+                    'NSHighResolutionCapable': 'True',
+                    'NSRequiresAquaSystemAppearance': 'False',
+                    'LSApplicationCategoryType': 'public.app-category.utilities',
+                })
+
+3. Build using the .spec file:
+
+   pyinstaller EnkripshunDik.spec
+
+4. Create a DMG disk image for distribution:
+   - Install `create-dmg`: `brew install create-dmg`
+   - Run the command:
+
+     create-dmg \
+       --volname "EnkripshunDik" \
+       --volicon "icon.icns" \
+       --window-pos 200 120 \
+       --window-size 600 400 \
+       --icon-size 100 \
+       --icon "EnkripshunDik.app" 175 190 \
+       --hide-extension "EnkripshunDik.app" \
+       --app-drop-link 425 190 \
+       "EnkripshunDik-Installer.dmg" \
+       "dist/EnkripshunDik.app"
+
+3.4 CODE SIGNING FOR MACOS
+------------------------
+To avoid security warnings on macOS:
+
+1. Obtain an Apple Developer certificate:
+   - Join Apple Developer Program ($99/year)
+   - Or create a self-signed certificate (less secure)
+
+2. Sign the application:
+
+   codesign --deep --force --verify --verbose --sign "Developer ID Application: Your Name (TEAM_ID)" "dist/EnkripshunDik.app"
+
+3. Verify signature:
+
+   codesign --verify --verbose "dist/EnkripshunDik.app"
+
+4. Notarize the application (requires Apple Developer account):
+
+   xcrun altool --notarize-app --primary-bundle-id "com.ugm616.enkripshundik" --username "apple@id.com" --password "app-specific-password" --file "EnkripshunDik-Installer.dmg"
+
+5. Wait for email confirmation, then staple the notarization:
+
+   xcrun stapler staple "EnkripshunDik-Installer.dmg"
+
+
+=====================================================================
+CHAPTER 4: LINUX BUILD GUIDE
+=====================================================================
+
+4.1 SETTING UP THE LINUX BUILD ENVIRONMENT
+----------------------------------------
+1. Install Python 3.7+ (if not already installed):
+   - Ubuntu/Debian: `sudo apt install python3 python3-pip python3-tk`
+   - Fedora: `sudo dnf install python3 python3-pip python3-tkinter`
+   - Arch Linux: `sudo pacman -S python python-pip tk`
+
+2. Verify Python installation:
+
+   python3 --version
+
+3. Install required dependencies:
+
+   pip3 install pillow numpy pyinstaller
+
+4. Create a project folder:
+
+   mkdir EnkripshunDik
+   cd EnkripshunDik
+
+5. Save the Python script as `image_encryption_tool.py` in this folder
+
+4.2 BASIC LINUX BUILD
+-------------------
+1. Open Terminal and navigate to your project folder:
+
+   cd path/to/EnkripshunDik
+
+2. Run PyInstaller with Linux options:
+
+   pyinstaller --onefile --windowed --name="enkripshundik" image_encryption_tool.py
+
+3. Find the executable in the `dist` folder
+   - The file will be named `enkripshundik`
+
+4. Make the file executable (if needed):
+
+   chmod +x dist/enkripshundik
+
+4.3 CREATING A LINUX DESKTOP ENTRY
+--------------------------------
+For easy access from application menus:
+
+1. Create a .desktop file:
+
+   [Desktop Entry]
+   Name=EnkripshunDik
+   Comment=Image Encryption Tool
+   Exec=/path/to/dist/enkripshundik
+   Icon=/path/to/icon.png
+   Terminal=false
+   Type=Application
+   Categories=Utility;Security;
+
+   Save as `enkripshundik.desktop`
+
+2. Install the desktop file:
+
+   # For current user only
+   mkdir -p ~/.local/share/applications
+   cp enkripshundik.desktop ~/.local/share/applications/
+   
+   # For all users (requires root)
+   sudo cp enkripshundik.desktop /usr/share/applications/
+
+3. Create icon directories (if needed):
+
+   mkdir -p ~/.local/share/icons/hicolor/256x256/apps/
+   cp icon.png ~/.local/share/icons/hicolor/256x256/apps/enkripshundik.png
+
+4. Update the desktop database:
+
+   update-desktop-database ~/.local/share/applications
+
+4.4 CREATING A .DEB PACKAGE (DEBIAN/UBUNTU)
+----------------------------------------
+For distribution on Debian-based systems:
+
+1. Install required tools:
+
+   sudo apt install python3-stdeb dh-python
+
+2. Create a `setup.py` file:
+
+   from setuptools import setup
+   
+   setup(
+       name="enkripshundik",
+       version="1.0",
+       description="Image Encryption Tool",
+       author="ugm616",
+       author_email="your.email@example.com",
+       url="https://github.com/ugm616/EnkripshunDik",
+       py_modules=["image_encryption_tool"],
+       install_requires=["pillow", "numpy"],
+       entry_points={
+           'console_scripts': [
+               'enkripshundik=image_encryption_tool:main',
+           ],
+       },
+   )
+
+3. Build the .deb package:
+
+   python3 setup.py --command-packages=stdeb.command bdist_deb
+
+4. Find the .deb package in `deb_dist/`
+
+4.5 CREATING AN RPM PACKAGE (FEDORA/RHEL)
+---------------------------------------
+For distribution on RPM-based systems:
+
+1. Install required tools:
+
+   sudo dnf install rpm-build
+   pip3 install setuptools wheel bdist_rpm
+
+2. Build the RPM package (using the same setup.py):
+
+   python3 setup.py bdist_rpm
+
+3. Find the .rpm package in `dist/`
+
+4.6 CREATING AN APPIMAGE
+----------------------
+For a distribution-independent package:
+
+1. Install required tools:
+
+   pip3 install pyinstaller
+
+2. Build with PyInstaller:
+
+   pyinstaller --onefile --windowed --name="enkripshundik" image_encryption_tool.py
+
+3. Download the AppImage Tool:
+
+   wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+   chmod +x appimagetool-x86_64.AppImage
+
+4. Create AppDir structure:
+
+   mkdir -p AppDir/usr/bin
+   mkdir -p AppDir/usr/share/applications
+   mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+   cp dist/enkripshundik AppDir/usr/bin/
+   cp enkripshundik.desktop AppDir/
+   cp enkripshundik.desktop AppDir/usr/share/applications/
+   cp icon.png AppDir/enkripshundik.png
+   cp icon.png AppDir/usr/share/icons/hicolor/256x256/apps/
+
+5. Create AppRun file:
+
+   #!/bin/bash
+   SELF=$(readlink -f "$0")
+   HERE=${SELF%/*}
+   export PATH="${HERE}/usr/bin:${PATH}"
+   export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+   "${HERE}/usr/bin/enkripshundik" "$@"
+
+   Save as `AppDir/AppRun` and make executable:
+
+   chmod +x AppDir/AppRun
+
+6. Build the AppImage:
+
+   ./appimagetool-x86_64.AppImage AppDir EnkripshunDik-x86_64.AppImage
+
+
+=====================================================================
+CHAPTER 5: ANDROID BUILD GUIDE (USING KIVY)
+=====================================================================
+
+5.1 PREPARING THE ANDROID VERSION
+-------------------------------
+Android builds require significant modification to the original code
+since Android doesn't directly support Tkinter. We'll use Kivy instead.
+
+1. Install requirements on your development machine:
+
+   pip install kivy buildozer
+
+2. Create a new version of the script using Kivy instead of Tkinter:
+   - Create a file named `enkripshundik_android.py` with Kivy UI
+
+3. Basic Kivy conversion structure:
+
+   from kivy.app import App
+   from kivy.uix.boxlayout import BoxLayout
+   from kivy.uix.button import Button
+   from kivy.uix.label import Label
+   from kivy.uix.image import Image
+   from kivy.uix.filechooser import FileChooserListView
+   from kivy.uix.textinput import TextInput
+   # ... (rest of imports)
+   
+   class EnkripshunDikApp(App):
+       def build(self):
+           # Build the UI
+           # This is where you convert the Tkinter UI to Kivy
+           # ...
+           
+   if __name__ == '__main__':
+       EnkripshunDikApp().run()
+
+5.2 SETTING UP BUILDOZER
+----------------------
+1. Initialize a buildozer.spec file:
+
+   buildozer init
+
+2. Edit the generated `buildozer.spec` file:
+
+   [app]
+   title = EnkripshunDik
+   package.name = enkripshundik
+   package.domain = com.ugm616
+   source.dir = .
+   source.include_exts = py,png,jpg,kv,atlas
+   version = 1.0
+   requirements = kivy,pillow,numpy,android
+   orientation = portrait
+   fullscreen = 0
+   android.permissions = WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
+   android.archs = arm64-v8a, armeabi-v7a
+
+5.3 BUILDING THE ANDROID APK
+--------------------------
+1. For a debug APK:
+
+   buildozer android debug
+
+2. For a release APK:
+
+   buildozer android release
+
+3. Sign the release APK:
+
+   # Generate a key if you don't have one
+   keytool -genkey -v -keystore enkripshundik.keystore -alias enkripshundik -keyalg RSA -keysize 2048 -validity 10000
+   
+   # Sign the APK
+   jarsigner -verbose -sigalg SHA1withRSA -digestalg SHA1 -keystore enkripshundik.keystore -storepass YOUR_PASSWORD bin/EnkripshunDik-*-release-unsigned.apk enkripshundik
+   
+   # Optimize with zipalign
+   zipalign -v 4 bin/EnkripshunDik-*-release-unsigned.apk bin/EnkripshunDik-release.apk
+
+5.4 TESTING THE ANDROID APP
+------------------------
+1. Install on an Android device:
+
+   adb install bin/EnkripshunDik-*-release.apk
+
+2. Or use an emulator:
+
+   # Start the emulator
+   emulator -avd YOUR_AVD_NAME
+   
+   # Install the app
+   adb install bin/EnkripshunDik-*-debug.apk
+
+5.5 PUBLISHING TO GOOGLE PLAY
+---------------------------
+1. Create a Google Developer account ($25 one-time fee)
+   - Visit https://play.google.com/console
+
+2. Create a new application
+   - Fill in all required metadata
+   - Prepare screenshots, feature graphic, app icon
+
+3. Upload your signed APK
+
+4. Complete the store listing, content rating, and pricing
+
+5. Publish the app or release to beta testers
+
+
+=====================================================================
+CHAPTER 6: CROSS-PLATFORM PACKAGING WITH BRIEFCASE (BEEWARE)
+=====================================================================
+
+6.1 INTRODUCING BRIEFCASE
+----------------------
+Briefcase is a packaging tool from the BeeWare project that can create
+installers for multiple platforms from a single codebase.
+
+1. Install Briefcase:
+
+   pip install briefcase
+
+2. Set up your project structure:
+
+   mkdir EnkripshunDik
+   cd EnkripshunDik
+
+6.2 CONVERTING TO BEEWARE FORMAT
+-----------------------------
+1. Create a pyproject.toml file:
+
+   [tool.briefcase]
+   project_name = "EnkripshunDik"
+   bundle = "com.ugm616"
+   version = "1.0.0"
+   url = "https://github.com/ugm616/EnkripshunDik"
+   license = "MIT"
+   author = "ugm616"
+   author_email = "your.email@example.com"
+   
+   [tool.briefcase.app.enkripshundik]
+   formal_name = "EnkripshunDik"
+   description = "Image Encryption Tool"
+   sources = ['enkripshundik']
+   requires = [
+       'pillow',
+       'numpy',
+   ]
+   
+   [tool.briefcase.app.enkripshundik.macOS]
+   requires = []
+   
+   [tool.briefcase.app.enkripshundik.windows]
+   requires = []
+   
+   [tool.briefcase.app.enkripshundik.linux]
+   requires = []
+   
+   [tool.briefcase.app.enkripshundik.android]
+   requires = []
+   
+   [tool.briefcase.app.enkripshundik.iOS]
+   requires = []
+
+2. Create the package structure:
+
+   mkdir -p enkripshundik
+   touch enkripshundik/__init__.py
+
+3. Create `enkripshundik/app.py` with the PyBeeWare version of the app:
+   - Convert the Tkinter UI to Toga (BeeWare's cross-platform UI toolkit)
+
+6.3 BUILDING WITH BRIEFCASE
+------------------------
+1. Create a scaffold for your platform:
+
+   # For Windows
+   briefcase create windows
+   
+   # For macOS
+   briefcase create macOS
+   
+   # For Linux
+   briefcase create linux
+   
+   # For Android
+   briefcase create android
+
+2. Build the application:
+
+   # For Windows
+   briefcase build windows
+   
+   # For macOS
+   briefcase build macOS
+   
+   # For Linux
+   briefcase build linux
+   
+   # For Android
+   briefcase build android
+
+3. Run the application:
+
+   briefcase run windows  # or macOS, linux, android
+
+4. Package for distribution:
+
+   # For Windows
+   briefcase package windows
+   
+   # For macOS
+   briefcase package macOS
+   
+   # For Linux
+   briefcase package linux
+   
+   # For Android
+   briefcase package android
+
+
+=====================================================================
+CHAPTER 7: COMMON ISSUES AND TROUBLESHOOTING
+=====================================================================
+
+7.1 GENERAL TROUBLESHOOTING
+-------------------------
+- Issue: Missing modules in PyInstaller build
+  Solution: Add `--hidden-import=module_name` to include them
+
+- Issue: "Failed to execute script" error
+  Solution: Run from command line to see the full error message
+
+- Issue: Large file size
+  Solution: Use UPX compression or try `--strip` option
+
+- Issue: tkinter not found
+  Solution: Install tkinter package for your OS:
+    - Windows: Reinstall Python with tkinter enabled
+    - macOS: `brew install python-tk`
+    - Linux: `apt install python3-tk` or equivalent
+
+7.2 PLATFORM-SPECIFIC ISSUES
+--------------------------
+Windows:
+- Issue: Antivirus flags the executable
+  Solution: Add exclusion or use code signing
+
+- Issue: DLL errors
+  Solution: Include the DLLs with `--add-binary` option
+
+macOS:
+- Issue: "App is damaged" message
+  Solution: Code sign and notarize the application
+
+- Issue: "Unidentified developer" warning
+  Solution: Right-click and select "Open" the first time
+
+Linux:
+- Issue: Missing shared libraries
+  Solution: Use `--onefile` or create appropriate dependencies in your package
+
+Android:
+- Issue: Permissions issues
+  Solution: Ensure correct permissions in buildozer.spec
+
+- Issue: APK fails to install
+  Solution: Check logs with `adb logcat`
+
+7.3 DEPENDENCY ISSUES
+------------------
+- Issue: Pillow/PIL import errors
+  Solution: Ensure Pillow is installed and not conflicting with PIL
+
+- Issue: NumPy version conflicts
+  Solution: Specify compatible versions in requirements
+
+- Issue: Tkinter images not showing
+  Solution: Make sure to keep references to PhotoImage objects
+
+
+=====================================================================
+CHAPTER 8: ADVANCED CUSTOMIZATIONS
+=====================================================================
+
+8.1 PERFORMANCE OPTIMIZATIONS
+--------------------------
+1. Profile your code:
+
+   import cProfile
+   cProfile.run('your_function_call()')
+
+2. Replace slow operations with NumPy vectorized code:
+
+   # Instead of looping through pixels
+   # Use NumPy operations
+
+3. Consider JIT compilation for compute-intensive parts:
+
+   pip install numba
+
+   Then add `@numba.jit` decorator to functions
+
+8.2 INTERFACING WITH NATIVE CODE
+-----------------------------
+For better performance in encryption/decryption:
+
+1. Consider wrapping C/C++ libraries using:
+   - ctypes
+   - cffi
+   - Cython
+
+2. Example with Cython:
+
+   # crypto_module.pyx
+   import numpy as np
+   cimport numpy as np
+   
+   def fast_encrypt(np.ndarray[np.uint8_t, ndim=1] data, seed):
+       # Fast implementation
+
+   # setup.py
+   from setuptools import setup
+   from Cython.Build import cythonize
+   
+   setup(
+       ext_modules=cythonize("crypto_module.pyx")
+   )
+
+8.3 CUSTOM SPLASH SCREENS
+----------------------
+1. For PyInstaller (Windows):
+
+   pyinstaller --splash splash_image.png --onefile --windowed app.py
+
+2. For BeeWare:
+   Configure splash screen in `pyproject.toml`:
+
+   [tool.briefcase.app.enkripshundik]
+   splash = "path/to/splash"
+
+8.4 LOCALIZATION SUPPORT
+---------------------
+1. Set up translation files:
+
+   import gettext
+   
+   # Set up gettext
+   gettext.bindtextdomain('enkripshundik', 'locale')
+   gettext.textdomain('enkripshundik')
+   _ = gettext.gettext
+   
+   # Use in strings
+   label_text = _("Encrypt Image")
+
+2. Extract strings and create .po files:
+
+   xgettext -d enkripshundik -o locale/enkripshundik.pot *.py
+   msginit -i locale/enkripshundik.pot -o locale/en/LC_MESSAGES/enkripshundik.po
+   msginit -i locale/enkripshundik.pot -o locale/fr/LC_MESSAGES/enkripshundik.po -l fr
+
+3. Compile .mo files:
+
+   msgfmt locale/en/LC_MESSAGES/enkripshundik.po -o locale/en/LC_MESSAGES/enkripshundik.mo
+   msgfmt locale/fr/LC_MESSAGES/enkripshundik.po -o locale/fr/LC_MESSAGES/enkripshundik.mo
+
+8.5 AUTO-UPDATES
+-------------
+1. For Windows/macOS/Linux with PyUpdater:
+
+   pip install pyupdater
+
+2. Initialize PyUpdater:
+
+   pyupdater init
+
+3. Set up your configuration in `client_config.py`
+
+4. Build with PyUpdater:
+
+   pyupdater build --app-name=EnkripshunDik --app-version=1.0.0 path/to/script.py
+
+5. Create update patches:
+
+   pyupdater pkg --process
+
+6. Deploy updates:
+
+   pyupdater pkg --deploy
+
+=====================================================================
+ADDITIONAL RESOURCES
+=====================================================================
+- PyInstaller documentation: https://pyinstaller.readthedocs.io/
+- BeeWare documentation: https://beeware.org/project/projects/tools/briefcase/
+- Kivy documentation: https://kivy.org/doc/stable/
+- Python Packaging User Guide: https://packaging.python.org/
+- GitHub repository: https://github.com/ugm616/EnkripshunDik
+
+=====================================================================
+END OF DOCUMENT
+=====================================================================
