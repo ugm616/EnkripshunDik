@@ -7,6 +7,7 @@ let passwordHash = null;
 // DOM ready handler
 document.addEventListener('DOMContentLoaded', function() {
   console.log("Image encryption system initialized");
+  console.log("Current settings: Metadata capacity = 1KB");
 });
 
 // Image input handling
@@ -161,9 +162,9 @@ function binaryToCounts(binary) {
 const characterPool = [
   'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
   'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-  'ä', 'é', 'ñ', 'ø', 'ü', 'ç', 'ß', 'å', 'æ', 'ö', 'î', 'â', 'ê', 'û', 'ô', 'è', 'ï', 'ë', 'ì', 'ò', 'ù', 'ã', 'õ', 'á', 'í', 'ó',
+  'ä', 'é', 'ñ', 'ø', 'ü', 'ç', 'ß', 'å', 'æ', 'ö', 'î', 'â', '��', 'û', 'ô', 'è', 'ï', 'ë', 'ì', 'ò', 'ù', 'ã', 'õ', 'á', 'í', 'ó',
   'Ä', 'É', 'Ñ', 'Ø', 'Ü', 'Ç', 'Å', 'Æ', 'Ö', 'Î', 'Â', 'Ê', 'Û', 'Ô', 'È', 'Ï', 'Ë', 'Ì', 'Ò', 'Ù', 'Ã', 'Õ', 'Á', 'Í', 'Ó',
-  'α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ', 'λ', 'μ', 'ν', 'ξ', 'ο', 'π', 'ρ', 'σ', 'τ', 'υ', 'φ', 'χ', 'ψ', 'ω',
+  'α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'ι', 'κ', 'λ', 'μ', 'ν', 'ξ', 'ο', 'π', 'ρ', 'σ', '��', 'υ', 'φ', 'χ', 'ψ', 'ω',
   'А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'Й', 'К', 'Л', 'М', 'Н', 'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф', 'Х', 'Ц', 'Ч', 'Ш', 'Щ'
 ];
 
@@ -275,9 +276,9 @@ async function encryptImage() {
     const data = imageData.data;
     
     // Make sure image is large enough to hold metadata
-    const minPixels = 100; // Need at least 100 pixels for metadata
+    const minPixels = 256; // UPDATED: Need at least 256 pixels for 1KB of metadata
     if (canvas.width * canvas.height < minPixels) {
-      throw new Error("Image too small to encrypt - needs at least 100 pixels");
+      throw new Error("Image too small to encrypt - needs at least 256 pixels");
     }
     
     // Generate base seed
@@ -287,7 +288,7 @@ async function encryptImage() {
     const { seed, mode, data: passwordData } = await modifySeedWithPassword(baseSeed);
     
     // Reserve the last rows of pixels for metadata
-    const reservedPixels = 100;
+    const reservedPixels = 256; // UPDATED: 256 pixels = 1KB (1024 bytes)
     const reservedBytes = reservedPixels * 4;
     const dataLimit = data.length - reservedBytes;
     
@@ -407,20 +408,6 @@ function embedMetadataIntoImage(data, metadataStr, dataLimit) {
   console.log(`Metadata embedded successfully at positions ${dataLimit} to ${position-1}`);
 }
 
-// Helper function to encrypt a single numeric value
-function encryptValue(value, pixelSeed, seed) {
-  // Use the seed to create a "shift" for the value
-  const shift = pixelSeed % 256;
-  
-  // Apply XOR operation
-  let encryptedValue = (parseInt(value) ^ shift) % 256;
-  
-  // Apply additional transformation based on the first seed value
-  encryptedValue = (encryptedValue + seed[0] % 256) % 256;
-  
-  return encryptedValue;
-}
-
 // Check if an image has embedded encryption metadata
 async function checkForEmbeddedMetadata(img) {
   try {
@@ -436,13 +423,13 @@ async function checkForEmbeddedMetadata(img) {
     const data = imageData.data;
     
     // Make sure image is large enough
-    if (data.length < 400) {
+    if (data.length < 1024) { // UPDATED: Need at least 256 pixels for 1KB
       console.log("Image too small to contain metadata");
-      return null; // Need at least 100 pixels
+      return null;
     }
     
     // Calculate reserved area start
-    const dataLimit = data.length - 400;
+    const dataLimit = data.length - 1024; // UPDATED: Look for metadata in the last 1KB
     
     // Read signature from the beginning of reserved area
     let position = dataLimit;
@@ -495,6 +482,20 @@ async function checkForEmbeddedMetadata(img) {
     console.error('Error checking for metadata:', error);
     return null;
   }
+}
+
+// Helper function to encrypt a single numeric value
+function encryptValue(value, pixelSeed, seed) {
+  // Use the seed to create a "shift" for the value
+  const shift = pixelSeed % 256;
+  
+  // Apply XOR operation
+  let encryptedValue = (parseInt(value) ^ shift) % 256;
+  
+  // Apply additional transformation based on the first seed value
+  encryptedValue = (encryptedValue + seed[0] % 256) % 256;
+  
+  return encryptedValue;
 }
 
 // Image decryption function
@@ -581,7 +582,7 @@ async function decryptImage() {
     const data = imageData.data;
     
     // Calculate reserved area (same as in encryption)
-    const reservedPixels = 100;
+    const reservedPixels = 256; // UPDATED: 256 pixels for 1KB
     const reservedBytes = reservedPixels * 4;
     const dataLimit = data.length - reservedBytes;
     
