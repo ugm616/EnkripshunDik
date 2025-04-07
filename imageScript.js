@@ -15,17 +15,96 @@ document.getElementById('image-input').addEventListener('change', function(e) {
         originalImage = img;
         displayImagePreview(img, 'image-preview');
         
-        // FIX: Add null check before accessing style property
-        const placeholder = document.getElementById('preview-placeholder');
-        if (placeholder) {
-          placeholder.style.display = 'none';
-        }
+        // Check if this is an encrypted image with embedded metadata
+        checkForEmbeddedMetadata(img).then(metadata => {
+          if (metadata) {
+            // This is an encrypted image
+            console.log("Detected encrypted image with embedded metadata");
+            
+            // Store metadata for later use
+            img.embeddedMetadata = metadata;
+            
+            // Notify the user this is an encrypted image
+            const placeholder = document.getElementById('preview-placeholder');
+            if (placeholder) {
+              placeholder.textContent = 'Encrypted image detected. Use the Decrypt button to view original.';
+              placeholder.style.display = 'block';
+            }
+            
+            // Set password mode radio button to match the image's encryption mode
+            const modeRadios = document.querySelectorAll('input[name="password-mode"]');
+            modeRadios.forEach(radio => {
+              if (radio.value === metadata.mode) {
+                radio.checked = true;
+                // Trigger the change event to update UI
+                radio.dispatchEvent(new Event('change'));
+              }
+            });
+          }
+        }).catch(err => {
+          console.error("Error checking for metadata:", err);
+        });
       };
       img.src = event.target.result;
     };
     reader.readAsDataURL(file);
   }
 });
+
+// Check if an image has embedded encryption metadata
+async function checkForEmbeddedMetadata(img) {
+  try {
+    // Create a canvas to examine the image
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    ctx.drawImage(img, 0, 0);
+    
+    // Get image data
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    
+    // Check for our metadata signature in the last few pixels
+    // We'll use the last 4 pixels to store our signature "EIMG"
+    // This signature helps us identify our encrypted images
+    
+    // Get the position of the signature pixels
+    const sigLength = 4; // 4 characters: "EIMG"
+    const startPos = data.length - (sigLength * 4); // 4 bytes per pixel
+    
+    // Read the signature
+    let signature = '';
+    for (let i = 0; i < sigLength; i++) {
+      // Read character from RGB values (ignore alpha)
+      signature += String.fromCharCode(data[startPos + (i * 4)]);
+    }
+    
+    // If signature doesn't match, this isn't our encrypted image
+    if (signature !== 'EIMG') {
+      return null;
+    }
+    
+    // Read length of metadata (stored in the pixel before signature start)
+    const lenPos = startPos - 4;
+    const metadataLength = data[lenPos] | (data[lenPos + 1] << 8);
+    
+    // Extract metadata bytes
+    const metadataStart = lenPos - (metadataLength * 4);
+    let metadataStr = '';
+    for (let i = 0; i < metadataLength; i++) {
+      const charPos = metadataStart + (i * 4);
+      metadataStr += String.fromCharCode(data[charPos]);
+    }
+    
+    // Parse the metadata JSON
+    return JSON.parse(metadataStr);
+    
+  } catch (error) {
+    console.error('Error checking for embedded metadata:', error);
+    return null;
+  }
+}
 
 // Password mode selection
 const passwordModeRadios = document.querySelectorAll('input[name="password-mode"]');
@@ -263,7 +342,7 @@ async function encryptImage() {
     const { seed, mode, data: passwordData } = await modifySeedWithPassword(baseSeed);
     
     // Process each pixel with the encryption algorithm
-    for (let i = 0; i < data.length; i += 4) {
+    for (let i = 0; i < data.length - 200; i += 4) { // Leave room at the end for metadata
       // Get RGB values (ignore alpha)
       const r = data[i];
       const g = data[i + 1];
@@ -295,19 +374,85 @@ async function encryptImage() {
       // Alpha remains unchanged
     }
     
+    // Create metadata object
+    const metadata = {
+      seed: seedToHex(seed),
+      mode: mode,
+      data: passwordData,
+      version: "1.0",
+    };
+    
+    // Convert metadata to JSON string
+    const metadataStr = JSON.stringify(metadata);
+    
+    // Embed metadata into the image
+    embedMetadataIntoImage(data, metadataStr);
+    
     // Put the encrypted data back onto the canvas
     ctx.putImageData(imageData, 0, 0);
     
     // Create a new image from the canvas
     const encryptedImg = new Image();
     encryptedImg.onload = function() {
-      // Display the encrypted image with metadata for decryption
-      displayEncryptedImage(encryptedImg, seed, mode, passwordData);
+      // Display the encrypted image
+      const outputContainer = document.getElementById('output-image');
+      if (outputContainer) {
+        outputContainer.innerHTML = '';
+        outputContainer.appendChild(encryptedImg);
+      }
+      
+      // Store for download
+      resultImage = encryptedImg;
+      
+      // Enable download button
+      const downloadBtn = document.getElementById('download-btn');
+      if (downloadBtn) {
+        downloadBtn.disabled = false;
+      }
     };
     encryptedImg.src = canvas.toDataURL('image/png');
   } catch (error) {
     alert('Encryption error: ' + error.message);
     console.error('Encryption error:', error);
+  }
+}
+
+// Embed metadata into the image data
+function embedMetadataIntoImage(data, metadataStr) {
+  // Calculate positions
+  const sigLength = 4; // 4 characters for signature "EIMG"
+  const metadataLength = metadataStr.length;
+  
+  // Make sure we have enough space
+  if (metadataLength * 4 + (sigLength * 4) + 4 > 200) {
+    throw new Error("Metadata too large to embed in image");
+  }
+  
+  // Calculate positions
+  const sigStart = data.length - (sigLength * 4);
+  const lenPos = sigStart - 4;
+  const metadataStart = lenPos - (metadataLength * 4);
+  
+  // Write metadata into image pixels
+  for (let i = 0; i < metadataLength; i++) {
+    const charPos = metadataStart + (i * 4);
+    const charCode = metadataStr.charCodeAt(i);
+    
+    data[charPos] = charCode; // Store in R channel
+    // Keep the G, B channels as is
+    // Keep alpha unchanged
+  }
+  
+  // Write metadata length (16-bit value)
+  data[lenPos] = metadataLength & 0xFF;
+  data[lenPos + 1] = (metadataLength >> 8) & 0xFF;
+  
+  // Write our signature "EIMG" to identify our encrypted images
+  for (let i = 0; i < sigLength; i++) {
+    const charPos = sigStart + (i * 4);
+    const charCode = "EIMG".charCodeAt(i);
+    
+    data[charPos] = charCode;
   }
 }
 
@@ -325,50 +470,27 @@ function encryptValue(value, pixelSeed, seed) {
   return encryptedValue;
 }
 
-// Display encrypted image and store seed for decryption
-function displayEncryptedImage(img, seed, passwordMode, passwordData) {
-  const outputContainer = document.getElementById('output-image');
-  if (!outputContainer) return;
-  
-  outputContainer.innerHTML = '';
-  
-  // Store encryption metadata in the image's dataset for decryption
-  img.dataset.encryptionSeed = seedToHex(seed);
-  img.dataset.passwordMode = passwordMode;
-  img.dataset.passwordData = passwordData;
-  outputContainer.appendChild(img);
-  
-  // Store for download
-  resultImage = img;
-  
-  // Enable download button
-  const downloadBtn = document.getElementById('download-btn');
-  if (downloadBtn) {
-    downloadBtn.disabled = false;
-  }
-}
-
 // Image decryption function
 async function decryptImage() {
-  const outputContainer = document.getElementById('output-image');
-  if (!outputContainer) return;
-  
-  // Check if there's an encrypted image
-  if (!outputContainer.querySelector('img')) {
-    alert('No encrypted image to decrypt!');
+  // First check if we have an uploaded image that has embedded metadata
+  if (!originalImage) {
+    alert('Please select an encrypted image first!');
     return;
   }
   
   try {
-    const encryptedImg = outputContainer.querySelector('img');
-    const seedHex = encryptedImg.dataset.encryptionSeed;
-    const storedPasswordMode = encryptedImg.dataset.passwordMode;
-    const storedPasswordData = encryptedImg.dataset.passwordData;
+    // Check if the image has embedded metadata
+    const metadata = await checkForEmbeddedMetadata(originalImage);
     
-    if (!seedHex || !storedPasswordMode || !storedPasswordData) {
-      alert('No encryption data found. This image may not be encrypted with this system.');
+    if (!metadata) {
+      alert('No encryption metadata found. This image may not be encrypted with this system.');
       return;
     }
+    
+    // Extract encryption details
+    const seed = hexToSeed(metadata.seed);
+    const storedPasswordMode = metadata.mode;
+    const storedPasswordData = metadata.data;
     
     // Verify the correct password is being used
     const passwordModeElement = document.querySelector('input[name="password-mode"]:checked');
@@ -417,22 +539,19 @@ async function decryptImage() {
       throw new Error("Incorrect password! Decryption failed.");
     }
     
-    // Get the base seed
-    const seed = hexToSeed(seedHex);
-    
     // Create canvas for decryption
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    canvas.width = encryptedImg.width;
-    canvas.height = encryptedImg.height;
-    ctx.drawImage(encryptedImg, 0, 0);
+    canvas.width = originalImage.width;
+    canvas.height = originalImage.height;
+    ctx.drawImage(originalImage, 0, 0);
     
     // Get image data
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const data = imageData.data;
     
-    // Process each pixel with the decryption algorithm
-    for (let i = 0; i < data.length; i += 4) {
+    // Process each pixel with the decryption algorithm - skip the last 200 bytes which may contain metadata
+    for (let i = 0; i < data.length - 200; i += 4) {
       // Get encrypted RGB values
       const encryptedR = data[i];
       const encryptedG = data[i + 1];
@@ -461,8 +580,11 @@ async function decryptImage() {
     const decryptedImg = new Image();
     decryptedImg.onload = function() {
       // Display the decrypted image
-      outputContainer.innerHTML = '';
-      outputContainer.appendChild(decryptedImg);
+      const outputContainer = document.getElementById('output-image');
+      if (outputContainer) {
+        outputContainer.innerHTML = '';
+        outputContainer.appendChild(decryptedImg);
+      }
       
       // Store for download
       resultImage = decryptedImg;
